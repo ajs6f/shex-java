@@ -85,12 +85,12 @@ public class ShExCParser extends ShExDocBaseVisitor<Object> implements Parser  {
 	private Path filename;
 
 	public ShExCParser(RDF rdfFactory) {
-	    this.rdfFactory = rdfFactory;
+		this.rdfFactory = rdfFactory;
 	}
 
-    public ShExCParser() {
-        this(RDFFactory.getInstance());
-    }
+	public ShExCParser() {
+		this(RDFFactory.getInstance());
+	}
 
 	public Map<Label,ShapeExpr> getRules(Path path) throws Exception{
 		this.filename=path;

@@ -45,14 +45,14 @@ public class SORBEGenerator {
 	private static int tripleLabelNb = 0;
 	private static String TRIPLE_LABEL_PREFIX = "LABEL_FOR_SORBE_GENERATED";
 
-	private final RDF rdfFactory; 
+	private final RDF rdfFactory;
 
-	private Map<Label,TripleExpr> sorbeMap;
-	
-    public SORBEGenerator(RDF factory) {
-        this.sorbeMap = new HashMap<Label, TripleExpr>();
-        this.rdfFactory = factory;
-    }
+	private Map<Label, TripleExpr> sorbeMap;
+
+	public SORBEGenerator(RDF factory) {
+		this.sorbeMap = new HashMap<Label, TripleExpr>();
+		this.rdfFactory = factory;
+	}
 
     public SORBEGenerator() {
         this(RDFFactory.getInstance());
@@ -161,14 +161,13 @@ public class SORBEGenerator {
 			return result;
 		}
 	}
-	
 
-    private void setTripleLabel(TripleExpr triple) {
-        final String id = TRIPLE_LABEL_PREFIX + "_" + tripleLabelNb;
-        triple.setId(new Label(rdfFactory.createBlankNode(id), true));
-        tripleLabelNb++;
-    }
-	
+	private void setTripleLabel(TripleExpr triple) {
+		final String id = TRIPLE_LABEL_PREFIX + "_" + tripleLabelNb;
+		triple.setId(new Label(rdfFactory.createBlankNode(id), true));
+		tripleLabelNb++;
+	}
+
 	class CheckIfContainsEmpty extends TripleExpressionVisitor<Boolean>{
 		private boolean result ;
 

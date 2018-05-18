@@ -93,25 +93,25 @@ public class TestValidation_ShExJ_Jena_Refine {
 	public static final Set<TestResultForTestReport> errors = new HashSet<TestResultForTestReport>();
 	
 	@Parameters
-    public static Collection<Object[]> parameters() throws IOException {
-        if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-            Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
-            List<Object[]> parameters = new ArrayList<Object[]>();
-            String selectedTest = "";
-            manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
-                TestCase tc = new TestCase(manifest, testNode);
-                Object[] params = { tc };
-                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
-            });
-            manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
-                TestCase tc = new TestCase(manifest, testNode);
-                Object[] params = { tc };
-                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
-            });
-            return parameters;
-        }
-        return Collections.emptyList();
-    }
+	public static Collection<Object[]> parameters() throws IOException {
+		if (Paths.get(MANIFEST_FILE).toFile().exists()) {
+			Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
+			List<Object[]> parameters = new ArrayList<Object[]>();
+			String selectedTest = "";
+			manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
+				TestCase tc = new TestCase(manifest, testNode);
+				Object[] params = { tc };
+				if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+			});
+			manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
+				TestCase tc = new TestCase(manifest, testNode);
+				Object[] params = { tc };
+				if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+			});
+			return parameters;
+		}
+		return Collections.emptyList();
+	}
     
     
     @Parameter
@@ -149,13 +149,13 @@ public class TestValidation_ShExJ_Jena_Refine {
     		ShexSchema schema = GenParser.parseSchema(schemaFile,Paths.get(SCHEMAS_DIR)); // exception possible
     		RDFGraph dataGraph = getRDFGraph();
     		ValidationAlgorithm validation = getValidationAlgorithm(schema, dataGraph);   
-    		final String focus;
-            if (testCase.focusNode instanceof IRI) focus = ((IRI) testCase.focusNode).getIRIString();
-            else if (testCase.focusNode instanceof BlankNode)
-                focus = ((BlankNode) testCase.focusNode).uniqueReference();
-            else focus = ((Literal) testCase.focusNode).getLexicalForm();
-    		// Fix for dealing with the absence of namespace specification in jena.
-    		if (focus.startsWith(GITHUB_URL)) {
+			final String focus;
+			if (testCase.focusNode instanceof IRI) focus = ((IRI) testCase.focusNode).getIRIString();
+			else if (testCase.focusNode instanceof BlankNode)
+				focus = ((BlankNode) testCase.focusNode).uniqueReference();
+			else focus = ((Literal) testCase.focusNode).getLexicalForm();
+			// Fix for dealing with the absence of namespace specification in jena.
+			if (focus.startsWith(GITHUB_URL)) {
     			if (TEST_DIR.contains(":")) {
     				String newURI = TEST_DIR.substring(0,TEST_DIR.indexOf(":")+1);
     				newURI += focus.substring(GITHUB_URL.length()+11);

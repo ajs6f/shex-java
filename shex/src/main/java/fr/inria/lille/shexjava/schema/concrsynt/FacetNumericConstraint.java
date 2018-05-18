@@ -109,10 +109,10 @@ public class FacetNumericConstraint implements Constraint {
         return datatype.equals(XMLSchema.DECIMAL) || INTEGER_DATATYPES.contains(datatype);
     }
 	
-    private static List<IRI> INTEGER_DATATYPES = asList(new IRI[] { XMLSchema.INTEGER, XMLSchema.LONG, XMLSchema.INT,
-                    XMLSchema.SHORT, XMLSchema.BYTE, XMLSchema.NON_POSITIVE_INTEGER, XMLSchema.NEGATIVE_INTEGER,
-                    XMLSchema.NON_NEGATIVE_INTEGER, XMLSchema.POSITIVE_INTEGER, XMLSchema.UNSIGNED_LONG,
-                    XMLSchema.UNSIGNED_INT, XMLSchema.UNSIGNED_SHORT, XMLSchema.UNSIGNED_BYTE });
+	private static List<IRI> INTEGER_DATATYPES = asList(new IRI[] { XMLSchema.INTEGER, XMLSchema.LONG, XMLSchema.INT,
+					XMLSchema.SHORT, XMLSchema.BYTE, XMLSchema.NON_POSITIVE_INTEGER, XMLSchema.NEGATIVE_INTEGER,
+					XMLSchema.NON_NEGATIVE_INTEGER, XMLSchema.POSITIVE_INTEGER, XMLSchema.UNSIGNED_LONG,
+					XMLSchema.UNSIGNED_INT, XMLSchema.UNSIGNED_SHORT, XMLSchema.UNSIGNED_BYTE });
 
 	private int computeTotalDigit(String value) {
 		if (! value.contains("."))

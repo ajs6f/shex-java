@@ -91,20 +91,20 @@ public class TestShExJParserShExJSerializer {
 	
 	@Parameters
 	public static Collection<Object[]> parameters() throws IOException {
-    	if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-			Graph manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
+		if (Paths.get(MANIFEST_FILE).toFile().exists()) {
+			Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
 			List<Object[]> parameters = new ArrayList<>();
-            manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
-                Object[] params = { new TestCase(manifest, testNode) };
-                parameters.add(params);
-            });
-            manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
-                Object[] params = { new TestCase(manifest, testNode) };
-                parameters.add(params);
-            });
+			manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
+				Object[] params = { new TestCase(manifest, testNode) };
+				parameters.add(params);
+			});
+			manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
+				Object[] params = { new TestCase(manifest, testNode) };
+				parameters.add(params);
+			});
 			return parameters;
-    	}
-    	return Collections.emptyList();
+		}
+		return Collections.emptyList();
 	}
 
     
@@ -193,11 +193,11 @@ public class TestShExJParserShExJSerializer {
 		return result;
 	}
 
-	public static Graph parseTurtleFile(String filename,String baseURI) throws IOException{
+	public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
 		Path fp = Paths.get(filename);
 		InputStream inputStream = new FileInputStream(fp.toFile());
 		ValueFactory vf = SimpleValueFactory.getInstance();
-        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
-        return new RDF4J().asGraph(rdf);
+		Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+		return new RDF4J().asGraph(rdf);
 	}
 }

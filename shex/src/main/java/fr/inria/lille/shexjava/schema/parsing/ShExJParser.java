@@ -81,13 +81,13 @@ public class ShExJParser implements Parser{
 
 	private final RDF rdfFactory;
 
-    public ShExJParser() {
-        this(RDFFactory.getInstance());
-    }
+	public ShExJParser() {
+		this(RDFFactory.getInstance());
+	}
 
-    public ShExJParser(RDF rdfFactory) {
-        this.rdfFactory = rdfFactory;
-    }
+	public ShExJParser(RDF rdfFactory) {
+		this.rdfFactory = rdfFactory;
+	}
 
 	private List<String> imports;
 	private Path path;

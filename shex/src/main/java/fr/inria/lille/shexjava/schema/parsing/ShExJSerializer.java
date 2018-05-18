@@ -445,9 +445,9 @@ public class ShExJSerializer {
 				tmp.put("object", tmp2);
 			}
 			else {
-                Map<String,Object> tmp2 = new LinkedHashMap<>();
-                tmp2.put("value", ((Literal) ann.getObjectValue()).getLexicalForm());
-                tmp.put("object", tmp2);
+				Map<String, Object> tmp2 = new LinkedHashMap<>();
+				tmp2.put("value", ((Literal) ann.getObjectValue()).getLexicalForm());
+				tmp.put("object", tmp2);
             }
 			result.add(tmp);			
 		}
@@ -464,7 +464,7 @@ public class ShExJSerializer {
 				result.put("language", lv.getLanguageTag().get());
 			return result;
 		}
-        return v instanceof IRI ? ((IRI) v).getIRIString() : ((BlankNode) v).uniqueReference();
+		return v instanceof IRI ? ((IRI) v).getIRIString() : ((BlankNode) v).uniqueReference();
 	}
 	
 	

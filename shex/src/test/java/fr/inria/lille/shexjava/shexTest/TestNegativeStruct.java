@@ -73,22 +73,21 @@ public class TestNegativeStruct {
 	public static final Set<TestResultForTestReport> failed = new HashSet<>();
 	public static final Set<TestResultForTestReport> errors = new HashSet<>();
 	
-    @Parameters
-    public static Collection<Object[]> parameters() throws IOException {
-        if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-            Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
-            List<Object[]> parameters = new ArrayList<>();
-            manifest.stream(null, RDF_TYPE, NEGATIVE_STRUCT).map(Triple::getSubject).forEach(testNode -> {
-                Object[] params = new Object[2];
-                params[0] = getTestName(manifest, testNode);
-                params[1] = getSchemaFileName(manifest, testNode);
-                parameters.add(params);
-            });
-            return parameters;
-        }
-        return Collections.emptyList();
-    }
-    
+	@Parameters
+	public static Collection<Object[]> parameters() throws IOException {
+		if (Paths.get(MANIFEST_FILE).toFile().exists()) {
+			Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
+			List<Object[]> parameters = new ArrayList<>();
+			manifest.stream(null, RDF_TYPE, NEGATIVE_STRUCT).map(Triple::getSubject).forEach(testNode -> {
+				Object[] params = new Object[2];
+				params[0] = getTestName(manifest, testNode);
+				params[1] = getSchemaFileName(manifest, testNode);
+				parameters.add(params);
+			});
+			return parameters;
+		}
+		return Collections.emptyList();
+	}
     
     @Parameter
     public String testName;
@@ -140,11 +139,11 @@ public class TestNegativeStruct {
 		return Paths.get(TEST_DIR,filename);
 	}
 
-    public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
-        Path fp = Paths.get(filename);
-        InputStream inputStream = new FileInputStream(fp.toFile());
-        ValueFactory vf = SimpleValueFactory.getInstance();
-        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
-        return new RDF4J().asGraph(rdf);
-    }
+	public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
+		Path fp = Paths.get(filename);
+		InputStream inputStream = new FileInputStream(fp.toFile());
+		ValueFactory vf = SimpleValueFactory.getInstance();
+		Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+		return new RDF4J().asGraph(rdf);
+	}
 }

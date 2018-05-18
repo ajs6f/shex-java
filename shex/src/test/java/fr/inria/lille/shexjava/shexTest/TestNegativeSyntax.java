@@ -142,17 +142,17 @@ public class TestNegativeSyntax {
 		return getPropertyLiteralString(manifest, testNode, TEST_NAME_IRI).get();
 	}
 
-	private static Path getSchemaFileName (Graph manifest, BlankNodeOrIRI testNode) {
-        String filename = ((IRI) TestCase.getProperty(manifest, testNode, TEST_SHEX_IRI).get()).getIRIString();
+	private static Path getSchemaFileName(Graph manifest, BlankNodeOrIRI testNode) {
+		String filename = ((IRI) TestCase.getProperty(manifest, testNode, TEST_SHEX_IRI).get()).getIRIString();
 		filename = filename.substring(GITHUB_URL.length());
-		return Paths.get(TEST_DIR,filename);
+		return Paths.get(TEST_DIR, filename);
 	}
 
-    public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
-        Path fp = Paths.get(filename);
-        InputStream inputStream = new FileInputStream(fp.toFile());
-        ValueFactory vf = SimpleValueFactory.getInstance();
-        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
-        return new RDF4J().asGraph(rdf);
+	public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
+		Path fp = Paths.get(filename);
+		InputStream inputStream = new FileInputStream(fp.toFile());
+		ValueFactory vf = SimpleValueFactory.getInstance();
+		Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+		return new RDF4J().asGraph(rdf);
 	}
 }

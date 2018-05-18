@@ -81,7 +81,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 	@Override
 	public boolean validate(RDFTerm focusNode, Label label) throws Exception {
 		if (label == null || !schema.getShapeMap().containsKey(label))
-		    throw new Exception("Unknown label: "+label);
+			throw new Exception("Unknown label: "+label);
 		this.resetTyping();
 		boolean result = recursiveValidation(focusNode,label);
 		if (result) {
@@ -206,7 +206,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 			if (possibility.isEmpty() & ! shape.getExtraProperties().contains(entry.getKey().getPredicate()))
 				return false;
 			for (TripleConstraint tc:possibility) {
-			    RDFTerm destNode = entry.getKey().getOpposite();
+				RDFTerm destNode = entry.getKey().getOpposite();
 				if (! this.typing.contains(destNode, tc.getShapeExpr().getId())) {
 					if (this.recursiveValidation(destNode, tc.getShapeExpr().getId()))
 						shapeMap.add(new Pair<>(destNode, tc.getShapeExpr().getId()));

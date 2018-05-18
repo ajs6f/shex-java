@@ -96,7 +96,7 @@ public class ShexSchema {
 	 */
 	public ShexSchema(Map<Label, ShapeExpr> rules, RDF factory) throws UndefinedReferenceException, CyclicReferencesException, NotStratifiedException {
 		this.rdfFactory = factory;
-	    //check that id are unique
+		//check that id are unique
 		this.rules = Collections.unmodifiableMap(new HashMap<Label, ShapeExpr>(rules));
 		// Collect all the ShapeExpr
 		Set<ShapeExpr> allShapes = SchemaCollectors.collectAllShapes(this.rules);
@@ -263,15 +263,15 @@ public class ShexSchema {
 	private void checkShapeID(ShapeExpr shape) {
 		if (shape.getId() == null) {
 			String formattedLabel = String.format("%s_%04d", SHAPE_LABEL_PREFIX,shapeLabelNb);
-            shape.setId(createShapeLabel(formattedLabel, true));
+			shape.setId(createShapeLabel(formattedLabel, true));
 			shapeLabelNb++;
 		}
 	}
 	
 	private Label createTripleLabel (String string,boolean generated) {
-        return isIriString(string)
-                        ? new Label(rdfFactory.createIRI(string), generated)
-                        : new Label(rdfFactory.createBlankNode(string), generated);
+		return isIriString(string)
+						? new Label(rdfFactory.createIRI(string), generated)
+						: new Label(rdfFactory.createBlankNode(string), generated);
 	}
 	
 	private void checkTripleID(TripleExpr triple) {
