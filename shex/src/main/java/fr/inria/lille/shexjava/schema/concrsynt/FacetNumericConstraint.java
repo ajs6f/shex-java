@@ -16,11 +16,12 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.schema.concrsynt;
 
-import java.math.BigDecimal;
+import static java.util.Arrays.asList;
 
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.datatypes.XMLDatatypeUtil;
+import java.math.BigDecimal;
+import java.util.List;
+
+import org.apache.commons.rdf.api.*;
 
 /**
  * 
@@ -68,15 +69,15 @@ public class FacetNumericConstraint implements Constraint {
 	}
 
 	@Override
-	public boolean contains(Value node) {
+	public boolean contains(RDFTerm node) {
 		if (! (node instanceof Literal)) return false;
 		Literal lnode = (Literal) node;
 		
-		if (!XMLDatatypeUtil.isValidDouble(lnode.stringValue()))
+		if (!XMLSchema.isValidDouble(lnode.getLexicalForm()))
 			return false;
-		if (!XMLDatatypeUtil.isValidValue(lnode.stringValue(), lnode.getDatatype()))
+		if (!XMLSchema.isValidValue(lnode.getLexicalForm(), lnode.getDatatype()))
 			return false;
-		BigDecimal dv = lnode.decimalValue().stripTrailingZeros();
+		BigDecimal dv = new BigDecimal(lnode.getLexicalForm()).stripTrailingZeros();
 		
 		if (minincl != null && dv.compareTo(minincl) < 0)
 			return false;
@@ -90,11 +91,11 @@ public class FacetNumericConstraint implements Constraint {
 		if (totalDigits==null & fractionDigits==null)
 			return true;
 		
-		if (!XMLDatatypeUtil.isDecimalDatatype(lnode.getDatatype())){
+		if (!isDecimalDatatype(lnode.getDatatype())){
 			return false;
 		}
 		
-		String normalizeValue = XMLDatatypeUtil.normalize(lnode.stringValue(), lnode.getDatatype());		
+		String normalizeValue = XMLSchema.normalize(lnode.getLexicalForm(), lnode.getDatatype());		
 		if (totalDigits != null && totalDigits < computeTotalDigit(normalizeValue)) 
 			return false;
 		
@@ -104,6 +105,15 @@ public class FacetNumericConstraint implements Constraint {
 		return true;
 	}
 	
+	private static boolean isDecimalDatatype(IRI datatype) {
+        return datatype.equals(XMLSchema.DECIMAL) || INTEGER_DATATYPES.contains(datatype);
+    }
+	
+    private static List<IRI> INTEGER_DATATYPES = asList(new IRI[] { XMLSchema.INTEGER, XMLSchema.LONG, XMLSchema.INT,
+                    XMLSchema.SHORT, XMLSchema.BYTE, XMLSchema.NON_POSITIVE_INTEGER, XMLSchema.NEGATIVE_INTEGER,
+                    XMLSchema.NON_NEGATIVE_INTEGER, XMLSchema.POSITIVE_INTEGER, XMLSchema.UNSIGNED_LONG,
+                    XMLSchema.UNSIGNED_INT, XMLSchema.UNSIGNED_SHORT, XMLSchema.UNSIGNED_BYTE });
+
 	private int computeTotalDigit(String value) {
 		if (! value.contains("."))
 			return (value.length());

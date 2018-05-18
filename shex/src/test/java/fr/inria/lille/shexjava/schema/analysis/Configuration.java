@@ -30,7 +30,7 @@ import java.util.List;
  *
  */
 public class Configuration {
-	public static Path shexTestPath = Paths.get("src","test","ressources");
+	public static Path shexTestPath = Paths.get("src","test","resources");
 
 	
 	public static List<Object[]> getTestFromDirectory(Path testDirectory,int result) throws IOException{

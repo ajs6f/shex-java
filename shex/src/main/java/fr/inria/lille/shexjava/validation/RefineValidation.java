@@ -26,8 +26,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Value;
+import org.apache.commons.rdf.api.IRI;
+import org.apache.commons.rdf.api.RDFTerm;
 
 import fr.inria.lille.shexjava.graph.NeighborTriple;
 import fr.inria.lille.shexjava.graph.RDFGraph;
@@ -97,7 +97,7 @@ public class RefineValidation implements ValidationAlgorithm {
 	}
 	
 	@Override
-	public boolean validate(Value focusNode, Label label)  throws Exception {
+	public boolean validate(RDFTerm focusNode, Label label)  throws Exception {
 		if (typing == null) {
 			this.typing = new RefinementTyping(schema, graph, extraShape);
 			for (int stratum = 0; stratum < schema.getNbStratums(); stratum++) {
@@ -106,9 +106,9 @@ public class RefineValidation implements ValidationAlgorithm {
 				boolean changed;
 				do {
 					changed = false;
-					Iterator<Pair<Value, Label>> typesIt = typing.typesIterator(stratum);
+					Iterator<Pair<RDFTerm, Label>> typesIt = typing.typesIterator(stratum);
 					while (typesIt.hasNext()) {
-						Pair<Value, Label> nl = typesIt.next();
+						Pair<RDFTerm, Label> nl = typesIt.next();
 						
 						if (! isLocallyValid(nl)) {
 							typesIt.remove();
@@ -126,7 +126,7 @@ public class RefineValidation implements ValidationAlgorithm {
 	}
 
 	
-	private boolean isLocallyValid(Pair<Value, Label> nl) {
+	private boolean isLocallyValid(Pair<RDFTerm, Label> nl) {
 		EvaluateShapeExpressionVisitor visitor = new EvaluateShapeExpressionVisitor(nl.one);
 		schema.getShapeMap().get(nl.two).accept(visitor);
 		return visitor.getResult();
@@ -134,10 +134,10 @@ public class RefineValidation implements ValidationAlgorithm {
 	
 	class EvaluateShapeExpressionVisitor extends ShapeExpressionVisitor<Boolean> {
 		
-		private Value node; 
+		private RDFTerm node; 
 		private Boolean result;
 		
-		public EvaluateShapeExpressionVisitor(Value one) {
+		public EvaluateShapeExpressionVisitor(RDFTerm one) {
 			this.node = one;
 		}
 
@@ -191,7 +191,7 @@ public class RefineValidation implements ValidationAlgorithm {
 	}
 	
 	
-	private boolean isLocallyValid (Value node, Shape shape) {
+	private boolean isLocallyValid (RDFTerm node, Shape shape) {
 		TripleExpr tripleExpression = this.sorbeGenerator.getSORBETripleExpr(shape);
 		Iterator<NeighborTriple> tmp ;
 
@@ -209,8 +209,8 @@ public class RefineValidation implements ValidationAlgorithm {
 			}
 		}
 		
-		Set<IRI> inversePredicate = new HashSet<IRI>();
-		Set<IRI> forwardPredicate = new HashSet<IRI>();
+		Set<IRI> inversePredicate = new HashSet<>();
+		Set<IRI> forwardPredicate = new HashSet<>();
 		for (TripleConstraint tc:constraints) {
 			if (tc.getProperty().isForward()) {
 				forwardPredicate.add(tc.getProperty().getIri());
@@ -219,7 +219,7 @@ public class RefineValidation implements ValidationAlgorithm {
 			}
 		}
 	
-		List<NeighborTriple> neighbourhood = new ArrayList<NeighborTriple>();
+		List<NeighborTriple> neighbourhood = new ArrayList<>();
 		tmp = graph.itInNeighboursWithPredicate(node, inversePredicate);
 		while(tmp.hasNext()) neighbourhood.add(tmp.next());
 		if (shape.isClosed()) {
@@ -245,7 +245,7 @@ public class RefineValidation implements ValidationAlgorithm {
 		}
 
 		// Create a BagIterator for all possible bags induced by the matching triple constraints
-		List<List<TripleConstraint>> listMatchingTC = new ArrayList<List<TripleConstraint>>();
+		List<List<TripleConstraint>> listMatchingTC = new ArrayList<>();
 		for(NeighborTriple nt:matchingTC.keySet())
 			listMatchingTC.add(matchingTC.get(nt));
 		BagIterator bagIt = new BagIterator(listMatchingTC);

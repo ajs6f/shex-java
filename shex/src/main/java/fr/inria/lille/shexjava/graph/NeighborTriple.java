@@ -16,7 +16,7 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.graph;
 
-import org.eclipse.rdf4j.model.Value;
+import org.apache.commons.rdf.api.RDFTerm;
 
 /** A triple with orientation that can be forward or backward.
  * Used to represent the neighborhood of a node.
@@ -30,11 +30,11 @@ import org.eclipse.rdf4j.model.Value;
  */
 public class NeighborTriple {
 
-	private final Value focus;
-	private final Value opposite;
+	private final RDFTerm focus;
+	private final RDFTerm opposite;
 	private final TCProperty prop;
 
-	public NeighborTriple(Value focus, TCProperty prop, Value opposite) {
+	public NeighborTriple(RDFTerm focus, TCProperty prop, RDFTerm opposite) {
 		this.focus = focus;
 		this.opposite = opposite;
 		this.prop = prop;
@@ -45,7 +45,7 @@ public class NeighborTriple {
 	 * 
 	 * @return the focus node of the triple
 	 */
-	public final Value getFocus() {
+	public final RDFTerm getFocus() {
 		return focus;
 	}
 	
@@ -54,7 +54,7 @@ public class NeighborTriple {
 	 * 
 	 * @return the opposite node of the triple
 	 */
-	public final Value getOpposite() {
+	public final RDFTerm getOpposite() {
 		return opposite;
 	}
 	

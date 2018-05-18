@@ -30,11 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.ValueFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-
+import org.apache.commons.rdf.api.*;
 import com.github.jsonldjava.utils.JsonUtils;
 
 import fr.inria.lille.shexjava.graph.TCProperty;
@@ -71,6 +67,7 @@ import fr.inria.lille.shexjava.schema.concrsynt.NodeKindConstraint;
 import fr.inria.lille.shexjava.schema.concrsynt.ValueSetValueConstraint;
 import fr.inria.lille.shexjava.schema.concrsynt.WildcardConstraint;
 import fr.inria.lille.shexjava.util.Interval;
+import fr.inria.lille.shexjava.util.RDFFactory;
 
 /** Parses a {@link ShexSchema} from its jsonld representation. 
  * 
@@ -81,7 +78,17 @@ import fr.inria.lille.shexjava.util.Interval;
  */
 @SuppressWarnings("rawtypes")
 public class ShExJParser implements Parser{
-	private final static ValueFactory rdfFactory = SimpleValueFactory.getInstance();
+
+	private final RDF rdfFactory;
+
+    public ShExJParser() {
+        this(RDFFactory.getInstance());
+    }
+
+    public ShExJParser(RDF rdfFactory) {
+        this.rdfFactory = rdfFactory;
+    }
+
 	private List<String> imports;
 	private Path path;
 
@@ -314,7 +321,7 @@ public class ShExJParser implements Parser{
 	// Language 	{ 	langTag:ObjectLiteral }
 	// _Stem_ contains stem as key
 	private Constraint parseValueSetValue (List values) {
-		Set<Value> explicitValues = new HashSet<>();
+		Set<RDFTerm> explicitValues = new HashSet<>();
 		Set<Constraint> nodeConstraints = new HashSet<>();
 
 		for (Object o : values) {
@@ -367,7 +374,7 @@ public class ShExJParser implements Parser{
 	}
 
 	// ObjectLiteral 	{ 	value:STRING language:STRING? type: STRING? }
-	private Value parseObjectLiteral (Map m) {
+	private RDFTerm parseObjectLiteral (Map m) {
 		String value = (String) m.get("value");
 		if (m.get("type") == null & m.get("language")==null)
 			return rdfFactory.createLiteral(value);
@@ -391,8 +398,8 @@ public class ShExJParser implements Parser{
 	//IriStemRange 	{ 	stem:(IRI | Wildcard) exclusions:[ objectValue|IriStem +]? }
 	protected Constraint parseIRIStemRange (Map m) {
 		//TODO: error if stem not present
-		Set<Constraint> exclusions = new HashSet<Constraint>();
-		Set<Value> forbidenValue = new HashSet<Value>();
+		Set<Constraint> exclusions = new HashSet<>();
+		Set<RDFTerm> forbidenValue = new HashSet<>();
 		if (m.containsKey("exclusions")) {
 			List<Object> exclu = (List<Object>) m.get("exclusions");
 			for (Object o:exclu) {
@@ -429,8 +436,8 @@ public class ShExJParser implements Parser{
 	//LiteralStemRange 	{ 	stem:(Literal | Wildcard) exclusions:[ objectValue|LiteralStem +]? }
 	protected Constraint parseLiteralStemRange (Map m) {
 		//TODO: error if stem not present
-		Set<Constraint> exclusions = new HashSet<Constraint>();
-		Set<Value> forbidenValue = new HashSet<Value>();
+		Set<Constraint> exclusions = new HashSet<>();
+		Set<RDFTerm> forbidenValue = new HashSet<>();
 		if (m.containsKey("exclusions")) {
 			List<Object> exclu = (List<Object>) m.get("exclusions");
 			for (Object o:exclu) {
@@ -473,8 +480,8 @@ public class ShExJParser implements Parser{
 
 	protected Constraint parseLanguageStemRange (Map m) {
 		//TODO: error if stem not present
-		Set<Constraint> exclusions = new HashSet<Constraint>();
-		Set<Value> forbidenValue = new HashSet<Value>();
+		Set<Constraint> exclusions = new HashSet<>();
+		Set<RDFTerm> forbidenValue = new HashSet<>();
 		if (m.containsKey("exclusions")) {
 			List<Object> exclu = (List<Object>) m.get("exclusions");
 			for (Object o:exclu) {
@@ -723,7 +730,7 @@ public class ShExJParser implements Parser{
 			for (Object annot:lannot) {
 				Map<String,Object> mannot = (Map<String,Object>) annot;
 				IRI pred = rdfFactory.createIRI((String) mannot.get("predicate"));
-				Value obj = null;
+				RDFTerm obj = null;
 				if (mannot.get("object") instanceof String)
 					obj = rdfFactory.createIRI((String) mannot.get("object"));
 				else
@@ -739,23 +746,23 @@ public class ShExJParser implements Parser{
 	// FACTORY METHODS
 	// ----------------------------------------------------------------------
 
-	private static Label createShapeLabel (String string,boolean generated) {
+	private Label createShapeLabel (String string,boolean generated) {
 		if (isIriString(string))
 			return new Label(rdfFactory.createIRI(string),generated);
 		else {
 			if (string.startsWith("_:"))
 				string = string.substring(2);
-			return new Label(rdfFactory.createBNode(string),generated);
+			return new Label(rdfFactory.createBlankNode(string),generated);
 		}
 	}
 
-	private static Label createTripleLabel (String string,boolean generated) {
+	private Label createTripleLabel (String string,boolean generated) {
 		if (isIriString(string))
 			return new Label(rdfFactory.createIRI(string),generated);
 		else {
 			if (string.startsWith("_:"))
 				string = string.substring(2);
-			return new Label(rdfFactory.createBNode(string),generated);
+			return new Label(rdfFactory.createBlankNode(string),generated);
 		}
 	}
 

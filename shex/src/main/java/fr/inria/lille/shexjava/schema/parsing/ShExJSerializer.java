@@ -25,10 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.rdf.api.*;
 import org.apache.jena.ext.com.google.common.io.Files;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Value;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.github.jsonldjava.utils.JsonUtils;
@@ -162,7 +160,7 @@ public class ShExJSerializer {
 		if (shape.getExtraProperties().size()>0) {
 			List<Object> extra = new ArrayList<Object>();
 			for (TCProperty tcp:shape.getExtraProperties()) {
-				extra.add(tcp.getIri().stringValue());
+				extra.add(tcp.getIri().getIRIString());
 			}
 			result.put("extra", extra);
 		}
@@ -191,7 +189,7 @@ public class ShExJSerializer {
 			if (constraint.equals(NodeKindConstraint.AllNonLiteral))
 				result.put("nodeKind", "nonliteral");
 			if (constraint instanceof DatatypeConstraint)
-				result.put("datatype",((DatatypeConstraint) constraint).getDatatypeIri().stringValue());
+				result.put("datatype",((DatatypeConstraint) constraint).getDatatypeIri().getIRIString());
 			if (constraint instanceof FacetNumericConstraint)
 				convertNumericFacet((FacetNumericConstraint) constraint, result);
 			if (constraint instanceof FacetStringConstraint)
@@ -238,8 +236,8 @@ public class ShExJSerializer {
 	}
 	
 	protected static Object convertValueSetValueConstraint(ValueSetValueConstraint constraint) {
-		List<Object> result = new ArrayList<Object>();
-		for (Value val:constraint.getExplicitValues()) {
+		List<Object> result = new ArrayList<>();
+		for (RDFTerm val:constraint.getExplicitValues()) {
 			result.add(convertValue(val));
 		}
 		
@@ -416,7 +414,7 @@ public class ShExJSerializer {
 		
 		if (! triple.getProperty().isForward())
 			result.put("inverse", true);
-		result.put("predicate", triple.getProperty().getIri().stringValue());
+		result.put("predicate", triple.getProperty().getIri().getIRIString());
 		
 		if (! (triple.getShapeExpr() instanceof EmptyShape)) 
 			result.put("valueExpr", convertShapeExpr(triple.getShapeExpr()));
@@ -434,34 +432,39 @@ public class ShExJSerializer {
 	//--------------------------------------------------
 
 	protected static Object convertAnnotations(List<Annotation> annotations) {
-		List<Object> result = new ArrayList<Object>();
+		List<Object> result = new ArrayList<>();
 		for (Annotation ann:annotations){
 			Map<String,Object> tmp = new LinkedHashMap<>();
 			tmp.put("type", "Annotation");
-			tmp.put("predicate", ann.getPredicate().stringValue());
+			tmp.put("predicate", ann.getPredicate().getIRIString());
 			if (ann.getObjectValue() instanceof IRI)
-				tmp.put("object", ann.getObjectValue().stringValue());
-			else {
+				tmp.put("object", ((IRI) ann.getObjectValue()).getIRIString());
+			else if (ann.getObjectValue() instanceof BlankNode){
 				Map<String,Object> tmp2 = new LinkedHashMap<>();
-				tmp2.put("value", ann.getObjectValue().stringValue());
+				tmp2.put("value", ((BlankNode) ann.getObjectValue()).uniqueReference());
 				tmp.put("object", tmp2);
 			}
+			else {
+                Map<String,Object> tmp2 = new LinkedHashMap<>();
+                tmp2.put("value", ((Literal) ann.getObjectValue()).getLexicalForm());
+                tmp.put("object", tmp2);
+            }
 			result.add(tmp);			
 		}
 		return result;
 	}
 	
-	protected static Object convertValue(Value v) {
+	protected static Object convertValue(RDFTerm v) {
 		if (v instanceof Literal) {
 			Literal lv = (Literal) v;
-			Map<String,Object> result = new LinkedHashMap<String, Object>();
-			result.put("value", lv.stringValue());
+			Map<String,Object> result = new LinkedHashMap<>();
+			result.put("value", lv.getLexicalForm());
 			result.put("type", lv.getDatatype().toString());
-			if (lv.getLanguage().isPresent())
-				result.put("language", lv.getLanguage().get());
+			if (lv.getLanguageTag().isPresent())
+				result.put("language", lv.getLanguageTag().get());
 			return result;
 		}
-		return v.stringValue();
+        return v instanceof IRI ? ((IRI) v).getIRIString() : ((BlankNode) v).uniqueReference();
 	}
 	
 	

@@ -16,6 +16,7 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.shexTest;
 
+import static fr.inria.lille.shexjava.util.TestCase.getPropertyLiteralString;
 import static org.junit.Assert.fail;
 
 import java.io.FileInputStream;
@@ -30,10 +31,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.util.Models;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
@@ -47,8 +49,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import fr.inria.lille.shexjava.schema.ShexSchema;
 import fr.inria.lille.shexjava.schema.parsing.GenParser;
-import fr.inria.lille.shexjava.util.RDFFactory;
-import fr.inria.lille.shexjava.util.TestResultForTestReport;
+import fr.inria.lille.shexjava.util.*;
 
 
 /** Run the negative structure test of the shexTest suite.
@@ -57,7 +58,7 @@ import fr.inria.lille.shexjava.util.TestResultForTestReport;
  */
 @RunWith(Parameterized.class)
 public class TestNegativeStruct {
-	private static final RDFFactory RDF_FACTORY = RDFFactory.getInstance();
+	private static final RDF RDF_FACTORY = RDFFactory.getInstance();
 
 	protected static final String TEST_DIR = Paths.get("..","..","shexTest").toAbsolutePath().normalize().toString();
 	protected static final String GITHUB_URL = "https://raw.githubusercontent.com/shexSpec/shexTest/master/";
@@ -65,27 +66,27 @@ public class TestNegativeStruct {
 	protected static final String SCHEMAS_DIR = Paths.get(TEST_DIR,"schemas").toString();
 
 	private static final IRI RDF_TYPE = RDF_FACTORY.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
-	private static final Resource NEGATIVE_STRUCT = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#NegativeStructure");
+	private static final BlankNodeOrIRI NEGATIVE_STRUCT = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#NegativeStructure");
 	private static final IRI TEST_NAME_IRI = RDF_FACTORY.createIRI("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#name");
 	private static final IRI TEST_SHEX_IRI = RDF_FACTORY.createIRI("https://shexspec.github.io/shexTest/ns#shex");
 	
-	public static final Set<TestResultForTestReport> failed = new HashSet<TestResultForTestReport>();
-	public static final Set<TestResultForTestReport> errors = new HashSet<TestResultForTestReport>();
+	public static final Set<TestResultForTestReport> failed = new HashSet<>();
+	public static final Set<TestResultForTestReport> errors = new HashSet<>();
 	
-	@Parameters
+    @Parameters
     public static Collection<Object[]> parameters() throws IOException {
-    	if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-	    	Model manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
-	    	List<Object[]> parameters = new ArrayList<Object[]>();
-			for (Resource testNode : manifest.filter(null,RDF_TYPE,NEGATIVE_STRUCT).subjects()) {
-	    		Object[] params =  new Object[2];
-	    		params[0]=getTestName(manifest, testNode);
-	    		params[1]=getSchemaFileName(manifest, testNode);
-		    	parameters.add(params);
-			}
-	        return parameters;
-    	}
-    	return Collections.emptyList();
+        if (Paths.get(MANIFEST_FILE).toFile().exists()) {
+            Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
+            List<Object[]> parameters = new ArrayList<>();
+            manifest.stream(null, RDF_TYPE, NEGATIVE_STRUCT).map(Triple::getSubject).forEach(testNode -> {
+                Object[] params = new Object[2];
+                params[0] = getTestName(manifest, testNode);
+                params[1] = getSchemaFileName(manifest, testNode);
+                parameters.add(params);
+            });
+            return parameters;
+        }
+        return Collections.emptyList();
     }
     
     
@@ -129,20 +130,21 @@ public class TestNegativeStruct {
 	// Utils functions for test
 	//--------------------------------------------------
 
-    private static String getTestName (Model manifest, Resource testNode) {
-		return Models.getPropertyString(manifest, testNode, TEST_NAME_IRI).get();
+    private static String getTestName (Graph manifest, BlankNodeOrIRI testNode) {
+        return getPropertyLiteralString(manifest, testNode, TEST_NAME_IRI).get();
 	}
 
-	private static Path getSchemaFileName (Model manifest, Resource testNode) {
-		String filename = Models.getPropertyString(manifest, testNode, TEST_SHEX_IRI).get();
+	private static Path getSchemaFileName (Graph manifest, BlankNodeOrIRI testNode) {
+		String filename = ((IRI)TestCase.getProperty(manifest, testNode, TEST_SHEX_IRI).get()).getIRIString();
 		filename = filename.substring(GITHUB_URL.length());
 		return Paths.get(TEST_DIR,filename);
 	}
 
-	public static Model parseTurtleFile(String filename,String baseURI) throws IOException{
-		Path fp = Paths.get(filename);
-		InputStream inputStream = new FileInputStream(fp.toFile());
-
-		return Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), RDF_FACTORY, new ParseErrorLogger());
-	}
+    public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
+        Path fp = Paths.get(filename);
+        InputStream inputStream = new FileInputStream(fp.toFile());
+        ValueFactory vf = SimpleValueFactory.getInstance();
+        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+        return new RDF4J().asGraph(rdf);
+    }
 }

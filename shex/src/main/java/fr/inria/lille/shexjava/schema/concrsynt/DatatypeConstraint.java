@@ -20,11 +20,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.datatypes.XMLDatatypeUtil;
-import org.eclipse.rdf4j.model.vocabulary.XMLSchema;
+import org.apache.commons.rdf.api.*;
 
 
 /**
@@ -67,12 +63,13 @@ public class DatatypeConstraint implements Constraint {
 	}
 
 	@Override
-	public boolean contains(Value node) {
+	public boolean contains(RDFTerm node) {
 		if (! (node instanceof Literal)) return false;
 		Literal lnode = (Literal) node;
 		if (!(datatypeIri.equals(lnode.getDatatype()))) return false;
+		
 		if (validatedDatatype.contains(lnode.getDatatype())) {
-			return XMLDatatypeUtil.isValidValue(lnode.stringValue(), lnode.getDatatype());
+			return XMLSchema.isValidValue(lnode.getLexicalForm(), lnode.getDatatype());
 		}
 
 		return true;

@@ -16,29 +16,20 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.schema.parsing;
 
+import static org.eclipse.rdf4j.rio.RDFFormat.TURTLE;
+
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import org.eclipse.rdf4j.model.BNode;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.Value;
-import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
@@ -64,21 +55,9 @@ import fr.inria.lille.shexjava.schema.abstrsynt.ShapeOr;
 import fr.inria.lille.shexjava.schema.abstrsynt.TripleConstraint;
 import fr.inria.lille.shexjava.schema.abstrsynt.TripleExpr;
 import fr.inria.lille.shexjava.schema.abstrsynt.TripleExprRef;
-import fr.inria.lille.shexjava.schema.concrsynt.Constraint;
-import fr.inria.lille.shexjava.schema.concrsynt.DatatypeConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.FacetNumericConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.FacetStringConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.IRIStemConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.IRIStemRangeConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.LanguageConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.LanguageStemConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.LanguageStemRangeConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.LiteralStemConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.LiteralStemRangeConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.NodeKindConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.ValueSetValueConstraint;
-import fr.inria.lille.shexjava.schema.concrsynt.WildcardConstraint;
+import fr.inria.lille.shexjava.schema.concrsynt.*;
 import fr.inria.lille.shexjava.util.Interval;
+import fr.inria.lille.shexjava.util.RDFFactory;
 
 
 /** Parses a {@link ShexSchema} from its rdf representation. 
@@ -103,13 +82,14 @@ public class ShExRParser implements Parser {
 			RDFFormat.TURTLE
 	});
 
-	private final static ValueFactory rdfFactory = SimpleValueFactory.getInstance();
-	private static IRI TYPE_IRI = rdfFactory.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
+	private static final RDF rdfFactory = RDFFactory.getInstance();
+
+	private IRI TYPE_IRI = rdfFactory.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
 	
-	private Model model;
+	private Graph model;
 	private List<String> imports;
-	private Set<Value> shapeSeen;
-	private Set<Value> tripleSeen;
+	private Set<RDFTerm> shapeSeen;
+	private Set<RDFTerm> tripleSeen;
 	
 	/** Used the first format that contains an extension that ends the provided path in the list of RDFFormats.
 	 * @see fr.inria.lille.shexjava.schema.parsing.Parser#getRules(java.nio.file.Path)
@@ -141,23 +121,23 @@ public class ShExRParser implements Parser {
 	public Map<Label, ShapeExpr> getRules(InputStream is, RDFFormat format) throws Exception {
 		Reader isr = new InputStreamReader(is,Charset.defaultCharset().name());
 		
-		model = Rio.parse(isr, BASE_IRI, RDFFormat.TURTLE, new ParserConfig(), rdfFactory, new ParseErrorLogger());
+		SimpleValueFactory svf = SimpleValueFactory.getInstance();
+        Model rdf = Rio.parse(isr, BASE_IRI, TURTLE, new ParserConfig(), svf, new ParseErrorLogger());
+		Graph model = new RDF4J().asGraph(rdf);
+		BlankNodeOrIRI root = model.stream(null, TYPE_IRI, SCHEMA).map(Triple::getSubject).findFirst().get();
 		
-		Model roots = model.filter(null,TYPE_IRI,rdfFactory.createIRI("http://www.w3.org/ns/shex#Schema"));
-		Resource root = (Resource) roots.subjects().toArray()[0];
+		Map<Label,ShapeExpr> rules = new HashMap<>();
+		shapeSeen = new HashSet<RDFTerm>();
+		tripleSeen = new HashSet<RDFTerm>();
 		
-		Map<Label,ShapeExpr> rules = new HashMap<Label,ShapeExpr>();
-		shapeSeen = new HashSet<Value>();
-		tripleSeen = new HashSet<Value>();
-		
-		for (Statement stat: model.filter(root, rdfFactory.createIRI("http://www.w3.org/ns/shex#shapes"), null)) {
+		model.stream(root, SHAPES, null).forEach(stat -> {
 			ShapeExpr shape = parseShapeExpr(stat.getObject());
 			if (!(shape instanceof ShapeExprRef)) {
 				if (rules.containsKey(shape.getId()))
 					throw new IllegalArgumentException("Label "+shape.getId()+" allready used.");
 				rules.put(shape.getId(), shape);
 			}		
-		}
+		});
 		parseImports(root);
 		
 		return rules;
@@ -167,24 +147,26 @@ public class ShExRParser implements Parser {
 	public List<String> getImports() {
 		return imports;
 	}
-	
-	
+
+    private static Optional<RDFTerm> getObject(Graph g, RDFTerm subj, IRI pred) {
+        return g.stream((BlankNodeOrIRI) subj, pred, null).findFirst().map(Triple::getObject);
+    }
 	
 	//---------------------------------------------------------
 	// Schema
 	//---------------------------------------------------------
 
 	private static IRI IMPORTS = rdfFactory.createIRI("http://www.w3.org/ns/shex#imports");
-	private void parseImports(Value value) {
+	private void parseImports(RDFTerm value) {
 		imports = new ArrayList<String>();
-		if (model.filter((Resource) value,IMPORTS,null).size()==0)
+		if (!model.contains((BlankNodeOrIRI) value,IMPORTS,null))
 			return ;
 		
-		Value val =  (Value) model.filter((Resource) value,IMPORTS,null).objects().toArray()[0];
-		List<Object> list = computeListOfObject(val);
+		RDFTerm val = getObject(model, value, IMPORTS).get();
+		List<RDFTerm> list = computeListOfObject(val);
 
-		for(Object obj:list) {
-			imports.add(((String) obj.toString()).substring(BASE_IRI.length())); 
+		for(RDFTerm obj:list) {
+			imports.add(((IRI)obj).getIRIString().substring(BASE_IRI.length())); 
 		}
 	}
 	
@@ -194,17 +176,18 @@ public class ShExRParser implements Parser {
 	// Shape
 	//----------------------------------------------------------
 	
-	
+	private static IRI SCHEMA = rdfFactory.createIRI("http://www.w3.org/ns/shex#Schema");
 	private static IRI SHAPE = rdfFactory.createIRI("http://www.w3.org/ns/shex#Shape");
+	private static IRI SHAPES = rdfFactory.createIRI("http://www.w3.org/ns/shex#shapes");
 	private static IRI SHAPE_AND = rdfFactory.createIRI("http://www.w3.org/ns/shex#ShapeAnd");
 	private static IRI SHAPE_OR = rdfFactory.createIRI("http://www.w3.org/ns/shex#ShapeOr");
 	private static IRI SHAPE_NOT = rdfFactory.createIRI("http://www.w3.org/ns/shex#ShapeNot");
 	private static IRI NODE_CONSTRAINT = rdfFactory.createIRI("http://www.w3.org/ns/shex#NodeConstraint");
-	private ShapeExpr parseShapeExpr(Value value) {
-		if (shapeSeen.contains(value) |  model.filter((Resource) value,null,null).size()==0 )
+	private ShapeExpr parseShapeExpr(RDFTerm value) {
+		if (shapeSeen.contains(value) |  model.stream((BlankNodeOrIRI) value,null,null).count()==0 )
 			return new ShapeExprRef(createLabel(value));
 		
-		Value type = (Value) model.filter((Resource) value,TYPE_IRI,null).objects().toArray()[0];
+		RDFTerm type = model.stream((BlankNodeOrIRI) value,TYPE_IRI,null).map(Triple::getObject).findFirst().get();
 		
 		shapeSeen.add(value);
 		if (type.equals(SHAPE_AND))
@@ -224,11 +207,11 @@ public class ShExRParser implements Parser {
 	
 	
 	private static IRI SHAPE_EXPRS = rdfFactory.createIRI("http://www.w3.org/ns/shex#shapeExprs");
-	private ShapeExpr parseShapeAnd(Value value) {
-		Value val = (Value) model.filter((Resource) value, SHAPE_EXPRS, null).objects().toArray()[0];
-		List<ShapeExpr> subExpr = new ArrayList<ShapeExpr>();
+	private ShapeExpr parseShapeAnd(RDFTerm value) {
+	    RDFTerm val = getObject(model, value, SHAPE_EXPRS).get();
+		List<ShapeExpr> subExpr = new ArrayList<>();
 		for (Object obj:computeListOfObject(val))
-			subExpr.add(parseShapeExpr((Value) obj));
+			subExpr.add(parseShapeExpr((RDFTerm) obj));
 		
 		ShapeExpr res = new ShapeAnd(subExpr);
 		setLabel(res,value);		
@@ -236,11 +219,11 @@ public class ShExRParser implements Parser {
 	}
 	
 	
-	private ShapeExpr parseShapeOr(Value value) {
-		Value val = (Value) model.filter((Resource) value, SHAPE_EXPRS, null).objects().toArray()[0];
-		List<ShapeExpr> subExpr = new ArrayList<ShapeExpr>();
+	private ShapeExpr parseShapeOr(RDFTerm value) {
+	    RDFTerm val = getObject(model, value, SHAPE_EXPRS).get();
+		List<ShapeExpr> subExpr = new ArrayList<>();
 		for (Object obj:computeListOfObject(val))
-			subExpr.add(parseShapeExpr((Value) obj));
+			subExpr.add(parseShapeExpr((RDFTerm) obj));
 		
 		ShapeExpr res = new ShapeOr(subExpr);
 		setLabel(res,value);	
@@ -249,8 +232,8 @@ public class ShExRParser implements Parser {
 	
 	
 	private static IRI SHAPE_EXPR = rdfFactory.createIRI("http://www.w3.org/ns/shex#shapeExpr");
-	private ShapeExpr parseShapeNot(Value value) {
-		Value val = (Value) model.filter((Resource) value, SHAPE_EXPR, null).objects().toArray()[0];
+	private ShapeExpr parseShapeNot(RDFTerm value) {
+	    RDFTerm val = getObject(model, value, SHAPE_EXPR).get();
 		
 		ShapeExpr res = new ShapeNot(parseShapeExpr(val));
 		setLabel(res,value);
@@ -261,28 +244,28 @@ public class ShExRParser implements Parser {
 	private static IRI TRIPLE_EXPRESSION = rdfFactory.createIRI("http://www.w3.org/ns/shex#expression");
 	private static IRI CLOSED = rdfFactory.createIRI("http://www.w3.org/ns/shex#closed");
 	private static IRI EXTRA = rdfFactory.createIRI("http://www.w3.org/ns/shex#extra");
-	private ShapeExpr parseShape(Value value) {
+	private ShapeExpr parseShape(RDFTerm value) {
 		List<Annotation> annotations = parseAnnotations(value);
 
-		if (model.filter((Resource) value, TRIPLE_EXPRESSION,null).size()==0) {
+		if (!model.contains((BlankNodeOrIRI) value, TRIPLE_EXPRESSION,null)) {
 			ShapeExpr shtmp = new Shape(new EmptyTripleExpression(),Collections.emptySet(),false);
 			setLabel(shtmp,value);
 			return shtmp;
 		}
 		
 		boolean closed = false;
-		if (model.filter((Resource) value, CLOSED,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, CLOSED, null).objects().toArray()[0];
-			closed = val.booleanValue();
+		if (model.contains((BlankNodeOrIRI) value, CLOSED,null)) {
+			Literal val = (Literal) getObject(model, value, CLOSED).get();
+			closed = Boolean.parseBoolean(val.getLexicalForm());
 		}
 		
-		Set<TCProperty> extras = new HashSet<TCProperty>();
-		if (model.filter((Resource) value, EXTRA,null).size()>0) {
-			for (Statement ext:model.filter((Resource) value, EXTRA,null)) {
-				extras.add(TCProperty.createFwProperty((IRI) ext.getObject()));
-			}
-		}	
-		Value val = (Value) model.filter((Resource) value, TRIPLE_EXPRESSION, null).objects().toArray()[0];
+		Set<TCProperty> extras = new HashSet<>();
+        if (model.contains((BlankNodeOrIRI) value, EXTRA, null)) {
+            model.stream((BlankNodeOrIRI) value, EXTRA, null).forEach(ext -> {
+                extras.add(TCProperty.createFwProperty((IRI) ext.getObject()));
+            });
+        }
+		RDFTerm val = getObject(model, value, TRIPLE_EXPRESSION).get();
 		
 		Shape res = new Shape(parseTripleExpr(val),extras,closed,annotations);
 		setLabel(res,value);	
@@ -291,15 +274,15 @@ public class ShExRParser implements Parser {
 	
 	
 	private static IRI DATATYPE = rdfFactory.createIRI("http://www.w3.org/ns/shex#datatype");
-	private ShapeExpr parseNodeConstraint(Value value) {
-		List<Constraint> constraints = new ArrayList<Constraint>();
+	private ShapeExpr parseNodeConstraint(RDFTerm value) {
+		List<Constraint> constraints = new ArrayList<>();
 		
 		Constraint constraint = parseNodeKind(value);
 		if (constraint != null)
 			constraints.add(constraint);
 		
-		if (model.filter((Resource) value,DATATYPE,null).size()>0) {
-			Value val = (Value) model.filter((Resource) value, DATATYPE, null).objects().toArray()[0];
+		if (model.contains((BlankNodeOrIRI) value,DATATYPE,null)) {
+		    RDFTerm val = getObject(model, value, DATATYPE).get();
 			constraints.add(new DatatypeConstraint((IRI) val));
 		}
 		
@@ -311,7 +294,7 @@ public class ShExRParser implements Parser {
 		if (constraint!=null)
 			constraints.add(constraint);
 				
-		constraint = parseValues(value);
+		constraint = parseRDFTerms(value);
 		if (constraint!=null)
 			constraints.add(constraint);
 				
@@ -321,72 +304,72 @@ public class ShExRParser implements Parser {
 	}
 	
 	
-	private static IRI VALUES = rdfFactory.createIRI("http://www.w3.org/ns/shex#values");
-	private Constraint parseValues(Value value) {
-		if (model.filter((Resource) value,VALUES,null).size()==0)
+	private static IRI RDFTermS = rdfFactory.createIRI("http://www.w3.org/ns/shex#RDFTerms");
+	private Constraint parseRDFTerms(RDFTerm value) {
+		if (!model.contains((BlankNodeOrIRI) value, RDFTermS, null))
 			return null;
 		
-		Value val = (Value) model.filter((Resource) value, VALUES, null).objects().toArray()[0];
+		RDFTerm val = getObject(model, value, RDFTermS).get();
 		
-		List<Object> values_tmp = computeListOfObject(val);
-		Set<Value> explicitValues = new HashSet<Value>();
-		Set<Constraint> constraints = new HashSet<Constraint>();
-		for (Object obj:values_tmp) {
+		List<RDFTerm> RDFTerms_tmp = computeListOfObject(val);
+		Set<RDFTerm> explicitRDFTerms = new HashSet<>();
+		Set<Constraint> constraints = new HashSet<>();
+		for (RDFTerm obj:RDFTerms_tmp) {
 			if (obj instanceof Literal | obj instanceof IRI) {
-				explicitValues.add((Value) obj);
+				explicitRDFTerms.add(obj);
 				continue;
 			} else {
-				Constraint tmp = parseLanguage((Value) obj);
+				Constraint tmp = parseLanguage(obj);
 				if (tmp!=null)
 					constraints.add(tmp);
-				tmp = parseLiteralStem((Value) obj);
+				tmp = parseLiteralStem(obj);
 				if (tmp!=null)
 					constraints.add(tmp);
-				tmp = parseIRIStem((Value) obj);
+				tmp = parseIRIStem(obj);
 				if (tmp!=null)
 					constraints.add(tmp);
 			}
 		}
 				
-		return new ValueSetValueConstraint(explicitValues, constraints);
+		return new ValueSetValueConstraint(explicitRDFTerms, constraints);
 	}
 	
 	
 	private static IRI IRI_STEM = rdfFactory.createIRI("http://www.w3.org/ns/shex#IriStem");
 	private static IRI IRI_STEM_RANGE = rdfFactory.createIRI("http://www.w3.org/ns/shex#IriStemRange");
-	private Constraint parseIRIStem(Value value) {
-		Value type = (Value) model.filter((Resource) value,TYPE_IRI,null).objects().toArray()[0];
+	private Constraint parseIRIStem(RDFTerm value) {
+		RDFTerm type = getObject(model, value,TYPE_IRI).get();
 		if (type.equals(IRI_STEM)) {
-			Literal tmp = (Literal) model.filter((Resource) value, STEM, null).objects().toArray()[0];
-			return new IRIStemConstraint(tmp.stringValue());
+			Literal tmp = (Literal) getObject(model, value, STEM).get();
+			return new IRIStemConstraint(tmp.getLexicalForm());
 		}
 		if (type.equals(IRI_STEM_RANGE)) {
 			Constraint stem;
-			if (model.filter((Resource) value, STEM, null).size()>0) {
-				Value tmp = (Value) model.filter((Resource) value, STEM, null).objects().toArray()[0];
+			if (model.contains((BlankNodeOrIRI) value, STEM, null)) {
+				RDFTerm tmp = getObject(model, value, STEM).get();
 				if (tmp instanceof Literal)
-					stem = new IRIStemConstraint(tmp.stringValue());
+					stem = new IRIStemConstraint(((Literal) tmp).getLexicalForm());
 				else
 					stem = new WildcardConstraint();
 			} else {
 				stem = new WildcardConstraint();
 			}
 			
-			Set<Value> explicitValues = new HashSet<Value>();
-			Set<Constraint> constraints = new HashSet<Constraint>();
+			Set<RDFTerm> explicitRDFTerms = new HashSet<>();
+			Set<Constraint> constraints = new HashSet<>();
 			
-			Value exclu = (Value) model.filter((Resource) value, EXCLUSION, null).objects().toArray()[0];
-			List<Object> exclusions = computeListOfObject(exclu);
-			for (Object excl:exclusions) {
+			RDFTerm exclu = getObject(model, value, EXCLUSION).get();
+			List<RDFTerm> exclusions = computeListOfObject(exclu);
+			for (RDFTerm excl:exclusions) {
 				if (excl instanceof IRI) {
-					explicitValues.add((IRI) excl);
+					explicitRDFTerms.add((IRI) excl);
 				} else {
-					Literal tmp = (Literal) model.filter((Resource) excl, STEM, null).objects().toArray()[0];
-					constraints.add(new IRIStemConstraint(tmp.stringValue()));
+					Literal tmp = (Literal) getObject(model, value, STEM).get();
+					constraints.add(new IRIStemConstraint(tmp.getLexicalForm()));
 				}
 			}
 
-			return new IRIStemRangeConstraint(stem, explicitValues, constraints);
+			return new IRIStemRangeConstraint(stem, explicitRDFTerms, constraints);
 		}
 		return null;
 	}
@@ -394,36 +377,36 @@ public class ShExRParser implements Parser {
 	
 	private static IRI LITERAL_STEM = rdfFactory.createIRI("http://www.w3.org/ns/shex#LiteralStem");
 	private static IRI LITERAL_STEM_RANGE = rdfFactory.createIRI("http://www.w3.org/ns/shex#LiteralStemRange");
-	private Constraint parseLiteralStem(Value value) {
-		Value type = (Value) model.filter((Resource) value,TYPE_IRI,null).objects().toArray()[0];
+	private Constraint parseLiteralStem(RDFTerm value) {
+		RDFTerm type = getObject(model, value, TYPE_IRI).get();
 		if (type.equals(LITERAL_STEM)) {
-			Literal tmp = (Literal) model.filter((Resource) value, STEM, null).objects().toArray()[0];
-			return new LiteralStemConstraint(tmp.stringValue());
+			Literal tmp = (Literal) getObject(model, value, STEM).get();
+			return new LiteralStemConstraint(tmp.getLexicalForm());
 		}
 		if (type.equals(LITERAL_STEM_RANGE)) {
 			Constraint stem;
-			if (model.filter((Resource) value, STEM, null).size()>0) {
-				Literal tmp = (Literal) model.filter((Resource) value, STEM, null).objects().toArray()[0];
-				stem = new LiteralStemConstraint(tmp.stringValue());
+			if (model.contains((BlankNodeOrIRI) value, STEM, null)) {
+				Literal tmp = (Literal) getObject(model, value, STEM).get();
+				stem = new LiteralStemConstraint(tmp.getLexicalForm());
 			} else {
 				stem = new WildcardConstraint();
 			}
 			
-			Set<Value> explicitValues = new HashSet<Value>();
-			Set<Constraint> constraints = new HashSet<Constraint>();
+			Set<RDFTerm> explicitRDFTerms = new HashSet<>();
+			Set<Constraint> constraints = new HashSet<>();
 			
-			Value exclu = (Value) model.filter((Resource) value, EXCLUSION, null).objects().toArray()[0];
-			List<Object> exclusions = computeListOfObject(exclu);
-			for (Object excl:exclusions) {
+			RDFTerm exclu = getObject(model, value, EXCLUSION).get();
+			List<RDFTerm> exclusions = computeListOfObject(exclu);
+			for (RDFTerm excl:exclusions) {
 				if (excl instanceof Literal) {
-					explicitValues.add((Literal) excl);
-					//constraints.add(new LanguageSetOfNodes(((Literal)excl).stringValue()));
+					explicitRDFTerms.add((Literal) excl);
+					//constraints.add(new LanguageSetOfNodes(((Literal)excl).stringRDFTerm()));
 				} else {
-					Literal tmp = (Literal) model.filter((Resource) excl, STEM, null).objects().toArray()[0];
-					constraints.add(new LiteralStemConstraint(tmp.stringValue()));
+					Literal tmp = (Literal) getObject(model, (IRI) excl, STEM).get();
+					constraints.add(new LiteralStemConstraint(tmp.getLexicalForm()));
 				}
 			}
-			return new LiteralStemRangeConstraint(stem, explicitValues, constraints);
+			return new LiteralStemRangeConstraint(stem, explicitRDFTerms, constraints);
 		}
 		return null;
 	}
@@ -435,56 +418,56 @@ public class ShExRParser implements Parser {
 	private static IRI LANGUAGE_TAG = rdfFactory.createIRI("http://www.w3.org/ns/shex#languageTag");
 	private static IRI LANGUAGE_STEM = rdfFactory.createIRI("http://www.w3.org/ns/shex#LanguageStem");
 	private static IRI LANGUAGE_STEM_RANGE = rdfFactory.createIRI("http://www.w3.org/ns/shex#LanguageStemRange");
-	private Constraint parseLanguage(Value value) {
-		//System.err.println(model.filter((Resource) value,null,null));
-		Value type = (Value) model.filter((Resource) value,TYPE_IRI,null).objects().toArray()[0];
+	private Constraint parseLanguage(RDFTerm value) {
+		//System.err.println(model.filter((BlankNodeOrIRI) RDFTerm,null,null));
+		RDFTerm type = getObject(model, value, TYPE_IRI).get();
 		if (type.equals(LANGUAGE)) {
-			Literal tmp = (Literal) model.filter((Resource) value, LANGUAGE_TAG, null).objects().toArray()[0];
-			return new LanguageConstraint(tmp.stringValue());
+			Literal tmp = (Literal) getObject(model, value, LANGUAGE_TAG).get();
+			return new LanguageConstraint(tmp.getLexicalForm());
 		}
 		if (type.equals(LANGUAGE_STEM)) {
-			Literal tmp = (Literal) model.filter((Resource) value, STEM, null).objects().toArray()[0];
-			return new LanguageStemConstraint(tmp.stringValue());
+			Literal tmp = (Literal) getObject(model, value, STEM).get();
+			return new LanguageStemConstraint(tmp.getLexicalForm());
 		}
 		if (type.equals(LANGUAGE_STEM_RANGE)) {
 			Constraint stem ;
-			if (model.filter((Resource) value, STEM, null).size()>0) {
-				Literal tmp = (Literal) model.filter((Resource) value, STEM, null).objects().toArray()[0];
-				stem = new LanguageStemConstraint(tmp.stringValue());
+			if (model.contains((BlankNodeOrIRI) value, STEM, null)) {
+				Literal tmp = (Literal) getObject(model, value, STEM).get();
+				stem = new LanguageStemConstraint(tmp.getLexicalForm());
 			} else {
 				stem = new WildcardConstraint();
 			}
 			
-			Set<Value> explicitValues = new HashSet<Value>();
-			Set<Constraint> constraints = new HashSet<Constraint>();
+			Set<RDFTerm> explicitRDFTerms = new HashSet<>();
+			Set<Constraint> constraints = new HashSet<>();
 			
-			Value exclu = (Value) model.filter((Resource) value, EXCLUSION, null).objects().toArray()[0];
-			List<Object> exclusions = computeListOfObject(exclu);
-			for (Object excl:exclusions) {
+			RDFTerm exclu = getObject(model, value, EXCLUSION).get();
+			List<RDFTerm> exclusions = computeListOfObject(exclu);
+			for (RDFTerm excl:exclusions) {
 				if (excl instanceof Literal) {
-					constraints.add(new LanguageConstraint(((Literal)excl).stringValue()));
+					constraints.add(new LanguageConstraint(((Literal)excl).getLexicalForm()));
 				} else {
-					Literal tmp = (Literal) model.filter((Resource) excl, STEM, null).objects().toArray()[0];
-					constraints.add(new LanguageStemConstraint(tmp.stringValue()));
+					Literal tmp = (Literal) getObject(model, excl, STEM).get();
+					constraints.add(new LanguageStemConstraint(tmp.getLexicalForm()));
 				}
 			}
-			return new LanguageStemRangeConstraint(stem, explicitValues, constraints);
+			return new LanguageStemRangeConstraint(stem, explicitRDFTerms, constraints);
 		}
 		return null;
 	}
 	
 	
 	private static IRI NODEKIND = rdfFactory.createIRI("http://www.w3.org/ns/shex#nodeKind");	
-	private static IRI BNODE = rdfFactory.createIRI("http://www.w3.org/ns/shex#bnode");
+	private static IRI BlankNode = rdfFactory.createIRI("http://www.w3.org/ns/shex#BlankNode");
 	private static IRI IRI = rdfFactory.createIRI("http://www.w3.org/ns/shex#iri");
 	private static IRI LITERAL = rdfFactory.createIRI("http://www.w3.org/ns/shex#literal");
 	private static IRI NONLITERAL = rdfFactory.createIRI("http://www.w3.org/ns/shex#nonliteral");
-	private Constraint parseNodeKind(Value value) {
-		if (model.filter((Resource) value,NODEKIND,null).size()==0)
+	private Constraint parseNodeKind(RDFTerm value) {
+		if (!model.contains((BlankNodeOrIRI) value,NODEKIND,null))
 			return null;
 		
-		Value val = (Value) model.filter((Resource) value, NODEKIND, null).objects().toArray()[0];
-		if (val.equals(BNODE))
+		RDFTerm val = getObject(model, value, NODEKIND).get();
+		if (val.equals(BlankNode))
 			return NodeKindConstraint.Blank;
 		if (val.equals(IRI))
 			return NodeKindConstraint.AllIRI;
@@ -503,33 +486,33 @@ public class ShExRParser implements Parser {
 	private static IRI PATTERN = rdfFactory.createIRI("http://www.w3.org/ns/shex#pattern");
 	private static IRI FLAGS = rdfFactory.createIRI("http://www.w3.org/ns/shex#flags");
 	
-	private Constraint parseStringFacet(Value value) {
+	private Constraint parseStringFacet(RDFTerm value) {
 		FacetStringConstraint facet = new FacetStringConstraint();
 		boolean changed = false;
 		
-		if (model.filter((Resource) value, LENGTH,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, LENGTH, null).objects().toArray()[0];
-			facet.setLength(val.intValue());
+		if (model.contains((BlankNodeOrIRI) value, LENGTH,null)) {
+			Literal val = (Literal) getObject(model, value, LENGTH).get();
+			facet.setLength(Integer.parseInt(val.getLexicalForm()));
 			changed=true;
 		}
-		if (model.filter((Resource) value, MINLENGTH,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MINLENGTH, null).objects().toArray()[0];
-			facet.setMinLength(val.intValue());
+		if (model.contains((BlankNodeOrIRI) value, MINLENGTH,null)) {
+			Literal val = (Literal) getObject(model, value, MINLENGTH).get();
+			facet.setMinLength(Integer.parseInt(val.getLexicalForm()));
 			changed=true;
 		}
-		if (model.filter((Resource) value, MAXLENGTH,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MAXLENGTH, null).objects().toArray()[0];
-			facet.setMaxLength(val.intValue());
+		if (model.contains((BlankNodeOrIRI) value, MAXLENGTH,null)) {
+			Literal val = (Literal) getObject(model, value, MAXLENGTH).get();
+			facet.setMaxLength(Integer.parseInt(val.getLexicalForm()));
 			changed=true;
 		}
-		if (model.filter((Resource) value, PATTERN,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, PATTERN, null).objects().toArray()[0];
-			facet.setPattern(val.stringValue());
+		if (model.contains((BlankNodeOrIRI) value, PATTERN,null)) {
+			Literal val = (Literal) getObject(model, value, PATTERN).get();
+			facet.setPattern(val.getLexicalForm());
 			changed=true;
 		}
-		if (model.filter((Resource) value, FLAGS, null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, FLAGS, null).objects().toArray()[0];
-			facet.setFlags(val.stringValue());
+		if (model.contains((BlankNodeOrIRI) value, FLAGS, null)) {
+			Literal val = (Literal) getObject(model, value, FLAGS).get();
+			facet.setFlags(val.getLexicalForm());
 			changed=true;
 		}
 		
@@ -545,43 +528,43 @@ public class ShExRParser implements Parser {
 	private static IRI MAXEXCLUSIVE = rdfFactory.createIRI("http://www.w3.org/ns/shex#maxexclusive");
 	private static IRI FRACTIONDIGITS = rdfFactory.createIRI("http://www.w3.org/ns/shex#fractiondigits");
 	private static IRI TOTALDIGITS = rdfFactory.createIRI("http://www.w3.org/ns/shex#totaldigits");
-	private Constraint parseNumericFacet(Value value) {
+	private Constraint parseNumericFacet(RDFTerm value) {
 		FacetNumericConstraint facet = new FacetNumericConstraint();
 		boolean changed = false;
 				
-		if (model.filter((Resource) value, MININCLUSIVE,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MININCLUSIVE, null).objects().toArray()[0];
-			facet.setMinincl(val.decimalValue());
+		if (model.contains((BlankNodeOrIRI) value, MININCLUSIVE,null)) {
+			Literal val = (Literal) getObject(model, value, MININCLUSIVE).get();
+			facet.setMinincl(new BigDecimal(val.getLexicalForm()));
 			changed=true;
 		}
 		
-		if (model.filter((Resource) value, MINEXCLUSIVE,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MINEXCLUSIVE, null).objects().toArray()[0];
-			facet.setMinexcl(val.decimalValue());
+		if (model.contains((BlankNodeOrIRI) value, MINEXCLUSIVE,null)) {
+			Literal val = (Literal) getObject(model, value, MINEXCLUSIVE).get();
+			facet.setMinexcl(new BigDecimal(val.getLexicalForm()));
 			changed=true;
 		}
 		
-		if (model.filter((Resource) value, MAXINCLUSIVE,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MAXINCLUSIVE, null).objects().toArray()[0];
-			facet.setMaxincl(val.decimalValue());
+		if (model.contains((BlankNodeOrIRI) value, MAXINCLUSIVE,null)) {
+			Literal val = (Literal) getObject(model, value, MAXINCLUSIVE).get();
+			facet.setMaxincl(new BigDecimal(val.getLexicalForm()));
 			changed=true;
 		}
 		
-		if (model.filter((Resource) value, MAXEXCLUSIVE,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, MAXEXCLUSIVE, null).objects().toArray()[0];
-			facet.setMaxexcl(val.decimalValue());
+		if (model.contains((BlankNodeOrIRI) value, MAXEXCLUSIVE,null)) {
+			Literal val = (Literal) getObject(model, value, MAXEXCLUSIVE).get();
+			facet.setMaxexcl(new BigDecimal(val.getLexicalForm()));
 			changed=true;
 		}
 		
-		if (model.filter((Resource) value, FRACTIONDIGITS,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, FRACTIONDIGITS, null).objects().toArray()[0];
-			facet.setFractionDigits(val.intValue());;
+		if (model.contains((BlankNodeOrIRI) value, FRACTIONDIGITS,null)) {
+			Literal val = (Literal) getObject(model, value, FRACTIONDIGITS).get();
+			facet.setFractionDigits(Integer.parseInt(val.getLexicalForm()));
 			changed=true;
 		}
 		
-		if (model.filter((Resource) value, TOTALDIGITS,null).size()>0) {
-			Literal val = (Literal) model.filter((Resource) value, TOTALDIGITS, null).objects().toArray()[0];
-			facet.setTotalDigits(val.intValue());;
+		if (model.contains((BlankNodeOrIRI) value, TOTALDIGITS,null)) {
+			Literal val = (Literal) getObject(model, value, TOTALDIGITS).get();
+			facet.setTotalDigits(Integer.parseInt(val.getLexicalForm()));
 			changed=true;
 		}
 		
@@ -600,11 +583,11 @@ public class ShExRParser implements Parser {
 	private static IRI EACH_OF = rdfFactory.createIRI("http://www.w3.org/ns/shex#EachOf");
 	private static IRI ONE_OF = rdfFactory.createIRI("http://www.w3.org/ns/shex#OneOf");
 	
-	private TripleExpr parseTripleExpr(Value value) {
-		if (tripleSeen.contains(value) | model.filter((Resource) value,null,null).size()==0)
+	private TripleExpr parseTripleExpr(RDFTerm value) {
+		if (tripleSeen.contains(value) | !model.contains((BlankNodeOrIRI) value,null,null))
 			return new TripleExprRef(createLabel(value));
 		
-		Value type = (Value) model.filter((Resource) value,TYPE_IRI,null).objects().toArray()[0];
+		RDFTerm type = getObject(model, value, TYPE_IRI).get();
 
 		tripleSeen.add(value);
 		if (type.equals(ONE_OF))
@@ -620,13 +603,13 @@ public class ShExRParser implements Parser {
 	
 	private static IRI EXPRESSIONS = rdfFactory.createIRI("http://www.w3.org/ns/shex#expressions");
 	
-	private TripleExpr parseEachOf(Value value) {
+	private TripleExpr parseEachOf(RDFTerm value) {
 		List<Annotation> annotations = parseAnnotations(value);
 
-		Value val = (Value) model.filter((Resource) value, EXPRESSIONS, null).objects().toArray()[0];
+		RDFTerm val = getObject(model, value, EXPRESSIONS).get();
 		List<TripleExpr> subExpr = new ArrayList<TripleExpr>();
 		for (Object obj:computeListOfObject(val))
-			subExpr.add(parseTripleExpr((Value) obj));
+			subExpr.add(parseTripleExpr((RDFTerm) obj));
 		
 		TripleExpr res = new EachOf(subExpr,annotations);
 		setLabel(res,value);
@@ -638,13 +621,13 @@ public class ShExRParser implements Parser {
 		return res;
 	}
 	
-	private TripleExpr parseOneOf(Value value) {
+	private TripleExpr parseOneOf(RDFTerm value) {
 		List<Annotation> annotations = parseAnnotations(value);
 
-		Value val = (Value) model.filter((Resource) value, EXPRESSIONS, null).objects().toArray()[0];
+		RDFTerm val = getObject(model, value, EXPRESSIONS).get();
 		List<TripleExpr> subExpr = new ArrayList<TripleExpr>();
 		for (Object obj:computeListOfObject(val))
-			subExpr.add(parseTripleExpr((Value) obj));
+			subExpr.add(parseTripleExpr((RDFTerm) obj));
 		
 		TripleExpr res = new OneOf(subExpr,annotations);
 		setLabel(res,value);
@@ -658,33 +641,33 @@ public class ShExRParser implements Parser {
 	
 	
 	private static IRI PREDICATE = rdfFactory.createIRI("http://www.w3.org/ns/shex#predicate");
-	private static IRI VALUE_EXPR = rdfFactory.createIRI("http://www.w3.org/ns/shex#valueExpr");
+	private static IRI RDFTerm_EXPR = rdfFactory.createIRI("http://www.w3.org/ns/shex#RDFTermExpr");
 	private static IRI INVERSE = rdfFactory.createIRI("http://www.w3.org/ns/shex#inverse");
-	private TripleExpr parseTripleConstraint(Value value) {
+	private TripleExpr parseTripleConstraint(RDFTerm value) {
 		List<Annotation> annotations = parseAnnotations(value);
 		
 		boolean inverse = false;
-		if (model.filter((Resource) value, INVERSE, null).size()>0) {
-			Literal inv = (Literal) model.filter((Resource) value, INVERSE, null).objects().toArray()[0];
-			inverse = inv.booleanValue();
+		if (model.contains((BlankNodeOrIRI) value, INVERSE, null)) {
+			Literal inv = (Literal) getObject(model, value, INVERSE).get();
+			inverse = Boolean.parseBoolean(inv.getLexicalForm());
 		}
 		
-		Value pred = (Value) model.filter((Resource) value, PREDICATE, null).objects().toArray()[0];
+		RDFTerm pred = getObject(model, value, PREDICATE).get();
 		TCProperty predicate;
 		if (inverse)
 			predicate = TCProperty.createInvProperty((IRI) pred);
 		else
 			predicate = TCProperty.createFwProperty((IRI) pred);
 		
-		ShapeExpr valueExpr;
-		if (model.filter((Resource) value, VALUE_EXPR, null).size()>0) {
-			Value val = (Value) model.filter((Resource) value, VALUE_EXPR, null).objects().toArray()[0];
-			valueExpr = parseShapeExpr(val);
+		ShapeExpr RDFTermExpr;
+		if (model.contains((BlankNodeOrIRI) value, RDFTerm_EXPR, null)) {
+			RDFTerm val = getObject(model, value, RDFTerm_EXPR).get();
+			RDFTermExpr = parseShapeExpr(val);
 		} else {
-			valueExpr = new EmptyShape();
+			RDFTermExpr = new EmptyShape();
 		}
 		
-		TripleExpr res = new TripleConstraint(predicate,valueExpr,annotations);
+		TripleExpr res = new TripleConstraint(predicate,RDFTermExpr,annotations);
 		setLabel(res,value);
 		
 		Interval card = getInterval(value);
@@ -697,15 +680,15 @@ public class ShExRParser implements Parser {
 	
 	private static IRI ANNOTATION = rdfFactory.createIRI("http://www.w3.org/ns/shex#annotation");
 	private static IRI OBJECT = rdfFactory.createIRI("http://www.w3.org/ns/shex#object");
-	private List<Annotation> parseAnnotations(Value value){
+	private List<Annotation> parseAnnotations(RDFTerm value){
 		List<Annotation> annotations = null;
-		if (model.filter((Resource) value, ANNOTATION, null).size()>0) {
-			Value ann = (Value) model.filter((Resource) value, ANNOTATION, null).objects().toArray()[0];
-			List<Object> lannot = computeListOfObject(ann);
+		if (model.contains((BlankNodeOrIRI) value, ANNOTATION, null)) {
+			RDFTerm ann = getObject(model, value, ANNOTATION).get();
+			List<RDFTerm> lannot = computeListOfObject(ann);
 			annotations = new ArrayList<Annotation>();
-			for (Object obj:lannot) {
-				IRI predicate = (IRI) model.filter((Resource) obj, PREDICATE, null).objects().toArray()[0];
-				Value object = (Value) model.filter((Resource) obj, OBJECT, null).objects().toArray()[0];
+			for (RDFTerm obj:lannot) {
+				IRI predicate = (IRI) getObject(model, obj, PREDICATE).get();
+				RDFTerm object = getObject(model, obj, OBJECT).get();
 				annotations.add(new Annotation(predicate,object));
 			}
 		}
@@ -716,12 +699,12 @@ public class ShExRParser implements Parser {
 	
 	private static IRI MIN = rdfFactory.createIRI("http://www.w3.org/ns/shex#min");
 	private static IRI MAX = rdfFactory.createIRI("http://www.w3.org/ns/shex#max");
-	private Interval getInterval(Value value) {
+	private Interval getInterval(RDFTerm value) {
 		Integer  min=null,max=null;
-		if (model.filter((Resource) value,MIN,null).size()>0)
-			min =  ((Literal) model.filter((Resource) value, MIN, null).objects().toArray()[0]).intValue();
-		if (model.filter((Resource) value,MAX,null).size()>0)
-			max =  ((Literal) model.filter((Resource) value, MAX, null).objects().toArray()[0]).intValue();
+		if (model.contains((BlankNodeOrIRI) value,MIN,null))
+			min =  Integer.parseInt(((Literal) getObject(model, value, MIN).get()).getLexicalForm());
+		if (model.contains((BlankNodeOrIRI) value,MAX,null))
+			max =  Integer.parseInt(((Literal) getObject(model, value, MAX).get()).getLexicalForm());
 		
 		if (min==null & max==null)
 			return null;
@@ -746,42 +729,38 @@ public class ShExRParser implements Parser {
 	private static IRI FIRST = rdfFactory.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#first");
 	private static IRI REST = rdfFactory.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest");	
 	private static IRI NIL = rdfFactory.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil");
-	private List<Object> computeListOfObject(Value value) {
-		Model model_first = model.filter((Resource) value, FIRST, null);
-		Model model_rest = model.filter((Resource) value, REST, null);
-
-		List<Object> result = new ArrayList<Object>();
-		result.add(model_first.objects().toArray()[0]);
-		
-		Value rest = ((Value) model_rest.objects().toArray()[0]);
+	private List<RDFTerm> computeListOfObject(RDFTerm value) {
+		List<RDFTerm> result = new ArrayList<>();
+		result.add(getObject(model, value, FIRST).get());
+		RDFTerm rest = getObject(model, value, REST).get();
 		if (!rest.equals(NIL))
 			result.addAll(computeListOfObject(rest));
 		return result;
 	}
 	
 	
-	private Label createLabel(Value value) {
+	private Label createLabel(RDFTerm value) {
 		if (value instanceof IRI)
 			return new Label((IRI) value);
-		if (value instanceof BNode)
-			return new Label((BNode) value);
+		if (value instanceof BlankNode)
+			return new Label((BlankNode) value);
 		return null;
 	}
 	
 	
-	private void setLabel(ShapeExpr shape,Value value) {
+	private void setLabel(ShapeExpr shape,RDFTerm value) {
 		if (value instanceof IRI)
 			shape.setId(new Label((IRI) value));
-		if (value instanceof BNode & ! value.stringValue().startsWith("gen-id"))
-			shape.setId(new  Label((BNode) value));
+		if (value instanceof BlankNode & ! ((BlankNode)value).uniqueReference().startsWith("gen-id"))
+			shape.setId(new  Label((BlankNode) value));
 	}
 	
 	
-	private void setLabel(TripleExpr triple,Value value) {
+	private void setLabel(TripleExpr triple,RDFTerm value) {
 		if (value instanceof IRI)
 			triple.setId(new Label((IRI) value));
-		if (value instanceof BNode & ! value.stringValue().startsWith("gen-id"))
-			triple.setId(new  Label((BNode) value));
+		if (value instanceof BlankNode & ! ((BlankNode)value).uniqueReference().startsWith("gen-id"))
+			triple.setId(new Label((BlankNode) value));
 	}
 	
 }

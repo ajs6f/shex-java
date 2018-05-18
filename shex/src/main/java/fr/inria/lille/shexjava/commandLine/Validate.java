@@ -27,17 +27,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.ValueFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
 
-import fr.inria.lille.shexjava.graph.RDF4JGraph;
+import fr.inria.lille.shexjava.graph.RDFGraph;
 import fr.inria.lille.shexjava.schema.Label;
 import fr.inria.lille.shexjava.schema.ShexSchema;
 import fr.inria.lille.shexjava.schema.parsing.GenParser;
+import fr.inria.lille.shexjava.util.RDFFactory;
 import fr.inria.lille.shexjava.validation.RecursiveValidation;
 import fr.inria.lille.shexjava.validation.RefineValidation;
 import fr.inria.lille.shexjava.validation.ValidationAlgorithm;
@@ -51,7 +51,7 @@ public class Validate {
 	
 	// FIXME not tested
 	
-	private final static ValueFactory rdfFactory = SimpleValueFactory.getInstance();
+	private final static RDF rdfFactory = RDFFactory.getInstance();
 	
 	/** Validates a graph against a schema.
 	 * 
@@ -101,13 +101,13 @@ public class Validate {
 			return;
 		}
 		
-		Model dataModel = getData(parameters.get("-d"));
+		Graph dataModel = getData(parameters.get("-d"));
 		if (dataModel == null) {
 			System.err.println("Was unable to the parse data. Aborting.");
 			return;
 		}
 		
-		Resource focusNode = null;
+		BlankNodeOrIRI focusNode = null;
 		if (parameters.get("-f") != null)
 			focusNode = rdfFactory.createIRI(parameters.get("-f"));
 		
@@ -117,8 +117,8 @@ public class Validate {
 		
 		ValidationAlgorithm val = null;
 		switch (parameters.get("-a")) {
-			case "refine" : val = new RefineValidation(schema, new RDF4JGraph(dataModel)); break;
-			case "recursive" : val = new RecursiveValidation(schema, new RDF4JGraph(dataModel)); break;
+			case "refine" : val = new RefineValidation(schema, new RDFGraph(dataModel)); break;
+			case "recursive" : val = new RecursiveValidation(schema, new RDFGraph(dataModel)); break;
 		}
 		
 		System.out.println("Validating graph " + parameters.get("-d") + " against schema " + parameters.get("-s") + ".");
@@ -162,14 +162,15 @@ public class Validate {
 		return schema;
 	}
 	
-	private static Model getData (String dataFileName) {
+	private static Graph getData (String dataFileName) {
 		
-		Model dataModel;
+		Graph dataModel;
 		
 		try {
 			java.net.URL documentUrl = new URL(dataFileName);
 			InputStream inputStream = documentUrl.openStream();
-			dataModel  = Rio.parse(inputStream, documentUrl.toString(), RDFFormat.TURTLE);
+			final Model rdf = Rio.parse(inputStream, documentUrl.toString(), RDFFormat.TURTLE);
+			dataModel = new RDF4J().asGraph(rdf);
 		} catch (Exception e) {
 			System.err.println("Error while reading the data file.");
 			System.err.println("Caused by: ");

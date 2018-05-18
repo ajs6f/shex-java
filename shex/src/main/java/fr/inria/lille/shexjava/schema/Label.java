@@ -16,8 +16,7 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.schema;
 
-import org.eclipse.rdf4j.model.BNode;
-import org.eclipse.rdf4j.model.IRI;
+import org.apache.commons.rdf.api.*;
 
 /** Label class for shex schema. A label is either an IRI or a BNode. This class is used to label triple expression and shape expression. 
  * 
@@ -25,9 +24,10 @@ import org.eclipse.rdf4j.model.IRI;
  * @author Jérémie Dusart
  */
 public class Label {
+
 	// Exactly one of these is non null
 	private final IRI iri;
-	private final BNode bnode;
+	private final BlankNode bnode;
 	private final boolean isGenerated;
 
 	
@@ -43,7 +43,7 @@ public class Label {
 	/** isGenerated is set to false.
 	 * @param bnode
 	 */
-	public Label (BNode bnode) {
+	public Label (BlankNode bnode) {
 		this.bnode = bnode;
 		this.iri = null;
 		this.isGenerated = false;
@@ -55,12 +55,12 @@ public class Label {
 		this.isGenerated = generated;
 	}
 	
-	public Label (BNode bnode,boolean generated) {
+	public Label (BlankNode bnode,boolean generated) {
 		this.bnode = bnode;
 		this.iri = null;
 		this.isGenerated = generated;
 	}
-	
+
 	public boolean isIri() {
 		return this.iri!=null;
 	}
@@ -75,8 +75,8 @@ public class Label {
 	
 	public String stringValue() {
 		if (bnode!=null)
-			return bnode.stringValue();
-		return iri.stringValue();
+			return bnode.uniqueReference();
+		return iri.getIRIString();
 	}
 
 	@Override

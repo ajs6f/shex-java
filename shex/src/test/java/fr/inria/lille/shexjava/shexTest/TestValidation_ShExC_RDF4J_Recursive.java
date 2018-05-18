@@ -30,10 +30,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
@@ -45,13 +46,10 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import fr.inria.lille.shexjava.graph.RDF4JGraph;
 import fr.inria.lille.shexjava.graph.RDFGraph;
 import fr.inria.lille.shexjava.schema.ShexSchema;
 import fr.inria.lille.shexjava.schema.parsing.GenParser;
-import fr.inria.lille.shexjava.util.RDFFactory;
-import fr.inria.lille.shexjava.util.TestCase;
-import fr.inria.lille.shexjava.util.TestResultForTestReport;
+import fr.inria.lille.shexjava.util.*;
 import fr.inria.lille.shexjava.validation.RecursiveValidation;
 import fr.inria.lille.shexjava.validation.ValidationAlgorithm;
 
@@ -62,7 +60,7 @@ import fr.inria.lille.shexjava.validation.ValidationAlgorithm;
  */
 @RunWith(Parameterized.class)
 public class TestValidation_ShExC_RDF4J_Recursive {
-	protected static final RDFFactory RDF_FACTORY = RDFFactory.getInstance();
+	protected static final RDF RDF_FACTORY = RDFFactory.getInstance();
 	
 	protected static final String TEST_DIR = Paths.get("..","..","shexTest").toAbsolutePath().normalize().toString();
 	
@@ -73,8 +71,8 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 
 
 	protected static final String GITHUB_URL = "https://raw.githubusercontent.com/shexSpec/shexTest/master/";
-	protected static final Resource VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
-	protected static final Resource VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
+	protected static final BlankNodeOrIRI VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
+	protected static final BlankNodeOrIRI VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
 	protected static final IRI RDF_TYPE = RDF_FACTORY.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
 	protected static final IRI TEST_TRAIT_IRI = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#trait");
 
@@ -97,21 +95,19 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	@Parameters
 	public static Collection<Object[]> parameters() throws IOException {
     	if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-			Model manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
-			List<Object[]> parameters = new ArrayList<Object[]>();
+    	    Graph manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
+			List<Object[]> parameters = new ArrayList<>();
 			String selectedTest = "";
-	    	for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_TEST_CLASS).subjects()) {
-	    		TestCase tc = new TestCase(manifest,testNode);
-		    	Object[] params =  {tc};
-		    	if (selectedTest.equals("") || tc.testName.equals(selectedTest))
-		    		parameters.add(params);
-			}
-	    	for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_FAILURE_CLASS).subjects()) {
-	    		TestCase tc = new TestCase(manifest,testNode);
-		    	Object[] params =  {tc};
-		    	if (selectedTest.equals("") || tc.testName.equals(selectedTest))
-		    		parameters.add(params);
-			}
+            manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
+                TestCase tc = new TestCase(manifest, testNode);
+                Object[] params = { tc };
+                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+            });
+            manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
+                TestCase tc = new TestCase(manifest, testNode);
+                Object[] params = { tc };
+                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+            });
 			return parameters;
     	}
     	return Collections.emptyList();
@@ -124,7 +120,7 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	@Test
     public void runTest() {
     	List<Object> reasons = new ArrayList<>();
-    	for (Value object: testCase.traits) {
+    	for (RDFTerm object: testCase.traits) {
     		if (skippedIris.contains(object)) {
     			reasons.add(object);
     		}
@@ -193,7 +189,7 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	// Utils functions for test
 	//--------------------------------------------------
 
-    public String getSchemaFileName (Resource res) {
+    public String getSchemaFileName (BlankNodeOrIRI res) {
     	String fp = res.toString().substring(GITHUB_URL.length());
     	fp = fp.substring(0,fp.length()-4)+"json";
 
@@ -206,8 +202,8 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	}
 	
 	public RDFGraph getRDFGraph() throws IOException {
-		Model data = parseTurtleFile(getDataFileName(testCase.dataFileName),GITHUB_URL+"validation/");
-		return new RDF4JGraph(data);
+	    Graph data = parseTurtleFile(getDataFileName(testCase.dataFileName),GITHUB_URL+"validation/");
+		return new RDFGraph(data);
 	}
 	
 	public ValidationAlgorithm getValidationAlgorithm(ShexSchema schema, RDFGraph dataGraph ) {
@@ -215,7 +211,7 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	}
 	
 
-	public String getDataFileName (Resource res) {
+	public String getDataFileName (BlankNodeOrIRI res) {
 		String fp = res.toString().substring(GITHUB_URL.length());
 		
 		String result = Paths.get(TEST_DIR).toString();
@@ -227,9 +223,11 @@ public class TestValidation_ShExC_RDF4J_Recursive {
 	}
 
 
-	public static Model parseTurtleFile(String filename,String baseURI) throws IOException{
-		Path fp = Paths.get(filename);
-		InputStream inputStream = new FileInputStream(fp.toFile());
-		return Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), RDF_FACTORY, new ParseErrorLogger());
-	}
+    public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
+        Path fp = Paths.get(filename);
+        InputStream inputStream = new FileInputStream(fp.toFile());
+        ValueFactory vf = SimpleValueFactory.getInstance();
+        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+        return new RDF4J().asGraph(rdf);
+    }
 }

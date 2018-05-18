@@ -32,10 +32,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
@@ -48,10 +49,7 @@ import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
 import fr.inria.lille.shexjava.schema.ShexSchema;
-import fr.inria.lille.shexjava.util.RDFFactory;
-import fr.inria.lille.shexjava.util.SchemaEquality;
-import fr.inria.lille.shexjava.util.TestCase;
-import fr.inria.lille.shexjava.util.TestResultForTestReport;
+import fr.inria.lille.shexjava.util.*;
 
 
 /** Run the validation tests of the shexTest suite using ShExC parser, RDF4JGraph and recursive validation.
@@ -60,7 +58,7 @@ import fr.inria.lille.shexjava.util.TestResultForTestReport;
  */
 @RunWith(Parameterized.class)
 public class TestShExCParserShExJSerializer {
-	protected static final RDFFactory RDF_FACTORY = RDFFactory.getInstance();
+	protected static final RDF RDF_FACTORY = RDFFactory.getInstance();
 	
 	protected static final String TEST_DIR = Paths.get("..","..","shexTest").toAbsolutePath().normalize().toString();
 	
@@ -70,8 +68,8 @@ public class TestShExCParserShExJSerializer {
 	protected static final String SCHEMAS_DIR = Paths.get(TEST_DIR,"schemas").toString();
 
 	protected static final String GITHUB_URL = "https://raw.githubusercontent.com/shexSpec/shexTest/master/";
-	protected static final Resource VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
-	protected static final Resource VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
+	protected static final BlankNodeOrIRI VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
+	protected static final BlankNodeOrIRI VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
 	protected static final IRI RDF_TYPE = RDF_FACTORY.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
 	protected static final IRI TEST_TRAIT_IRI = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#trait");
 
@@ -86,24 +84,24 @@ public class TestShExCParserShExJSerializer {
 			RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#"+"relativeIRI")
 	}));
 	
-	public static final Set<TestResultForTestReport> failed = new HashSet<TestResultForTestReport>();
-	public static final Set<TestResultForTestReport> passed = new HashSet<TestResultForTestReport>();
-	public static final Set<TestResultForTestReport> skiped = new HashSet<TestResultForTestReport>();
-	public static final Set<TestResultForTestReport> errors = new HashSet<TestResultForTestReport>();
+	public static final Set<TestResultForTestReport> failed = new HashSet<>();
+	public static final Set<TestResultForTestReport> passed = new HashSet<>();
+	public static final Set<TestResultForTestReport> skiped = new HashSet<>();
+	public static final Set<TestResultForTestReport> errors = new HashSet<>();
 	
 	@Parameters
 	public static Collection<Object[]> parameters() throws IOException {
     	if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-			Model manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
-			List<Object[]> parameters = new ArrayList<Object[]>();
-			for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_TEST_CLASS).subjects()) {
+			Graph manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
+			List<Object[]> parameters = new ArrayList<>();
+			manifest.stream(null,RDF_TYPE,VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
 				Object[] params =  {new TestCase(manifest,testNode)};
 				parameters.add(params);
-			}
-			for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_FAILURE_CLASS).subjects()) {
+			});
+			manifest.stream(null,RDF_TYPE,VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
 				Object[] params =  {new TestCase(manifest,testNode)};
 				parameters.add(params);
-			}
+			});
 			return parameters;
     	}
     	return Collections.emptyList();
@@ -116,7 +114,7 @@ public class TestShExCParserShExJSerializer {
 	@Test
     public void runTest() {
     	List<Object> reasons = new ArrayList<>();
-    	for (Value object: testCase.traits) {
+    	for (RDFTerm object: testCase.traits) {
     		if (skippedIris.contains(object)) {
     			reasons.add(object);
     		}
@@ -183,7 +181,7 @@ public class TestShExCParserShExJSerializer {
 	// Utils functions for test
 	//--------------------------------------------------
 
-    public String getSchemaFileName (Resource res) {
+    public String getSchemaFileName (BlankNodeOrIRI res) {
     	String fp = res.toString().substring(GITHUB_URL.length());
     	fp = fp.substring(0,fp.length()-4)+"json";
 
@@ -195,9 +193,11 @@ public class TestShExCParserShExJSerializer {
 		return result;
 	}
 
-	public static Model parseTurtleFile(String filename,String baseURI) throws IOException{
+	public static Graph parseTurtleFile(String filename,String baseURI) throws IOException{
 		Path fp = Paths.get(filename);
 		InputStream inputStream = new FileInputStream(fp.toFile());
-		return Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), RDF_FACTORY, new ParseErrorLogger());
+		ValueFactory vf = SimpleValueFactory.getInstance();
+		Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+		return new RDF4J().asGraph(rdf);
 	}
 }

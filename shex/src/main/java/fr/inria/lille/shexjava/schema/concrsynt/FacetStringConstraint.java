@@ -16,10 +16,8 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.schema.concrsynt;
 
-import org.eclipse.rdf4j.model.BNode;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Value;
+
+import org.apache.commons.rdf.api.*;
 
 import fr.inria.lille.shexjava.util.XPath;
 
@@ -63,14 +61,14 @@ public class FacetStringConstraint implements Constraint {
 		else throw new IllegalStateException("pattern already set");
 	}
 	@Override
-	public boolean contains(Value node) {
+	public boolean contains(RDFTerm node) {
 		String lex = null;
 		if (node instanceof Literal)
-			lex = ((Literal)node).stringValue();
+			lex = ((Literal)node).getLexicalForm();
 		else if (node instanceof IRI)
-			lex = ((IRI)node).stringValue();
-		else if (node instanceof BNode)
-			lex = ((BNode)node).getID();
+			lex = ((IRI)node).getIRIString();
+		else if (node instanceof BlankNode)
+			lex = ((BlankNode)node).uniqueReference();
 		if (patternString != null && ! XPath.matches(lex, patternString,flags))
 			return false;
 		if (length != null && lex.length() != length)

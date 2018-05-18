@@ -21,8 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.rdf4j.model.ValueFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.apache.commons.rdf.api.RDF;
 
 import fr.inria.lille.shexjava.schema.Label;
 import fr.inria.lille.shexjava.schema.abstrsynt.EachOf;
@@ -35,6 +34,7 @@ import fr.inria.lille.shexjava.schema.abstrsynt.TripleExpr;
 import fr.inria.lille.shexjava.schema.abstrsynt.TripleExprRef;
 import fr.inria.lille.shexjava.schema.analysis.TripleExpressionVisitor;
 import fr.inria.lille.shexjava.util.Interval;
+import fr.inria.lille.shexjava.util.RDFFactory;
 
 /** Compute a SORBE version of a triple expression. The computation are store and will not be reused.
  * The SORBE version does not contains any triple expression reference, cardinality other than *, ? or + and an empty triple expression with the + cardinality.
@@ -42,16 +42,22 @@ import fr.inria.lille.shexjava.util.Interval;
  * @author Jérémie Dusart
  */
 public class SORBEGenerator {
-	private final static ValueFactory rdfFactory = SimpleValueFactory.getInstance();
 	private static int tripleLabelNb = 0;
 	private static String TRIPLE_LABEL_PREFIX = "LABEL_FOR_SORBE_GENERATED";
-	
+
+	private final RDF rdfFactory; 
+
 	private Map<Label,TripleExpr> sorbeMap;
 	
-	public SORBEGenerator() {
-		this.sorbeMap=new HashMap<Label,TripleExpr>();
-	}
-	
+    public SORBEGenerator(RDF factory) {
+        this.sorbeMap = new HashMap<Label, TripleExpr>();
+        this.rdfFactory = factory;
+    }
+
+    public SORBEGenerator() {
+        this(RDFFactory.getInstance());
+    }
+
 	public TripleExpr getSORBETripleExpr(Shape shape) {
 		if (this.sorbeMap.containsKey(shape.getId()))
 			return this.sorbeMap.get(shape.getId());
@@ -157,10 +163,11 @@ public class SORBEGenerator {
 	}
 	
 
-	private void setTripleLabel(TripleExpr triple) {
-		triple.setId(new Label(rdfFactory.createBNode(TRIPLE_LABEL_PREFIX+"_"+tripleLabelNb),true));
-		tripleLabelNb++;
-	}
+    private void setTripleLabel(TripleExpr triple) {
+        final String id = TRIPLE_LABEL_PREFIX + "_" + tripleLabelNb;
+        triple.setId(new Label(rdfFactory.createBlankNode(id), true));
+        tripleLabelNb++;
+    }
 	
 	class CheckIfContainsEmpty extends TripleExpressionVisitor<Boolean>{
 		private boolean result ;

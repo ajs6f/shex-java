@@ -30,11 +30,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.rdf.api.*;
+import org.apache.commons.rdf.jena.JenaRDF;
+import org.apache.commons.rdf.rdf4j.RDF4J;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Model;
-import org.eclipse.rdf4j.model.Resource;
-import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.rio.ParserConfig;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.Rio;
@@ -46,13 +48,10 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import fr.inria.lille.shexjava.graph.JenaGraph;
 import fr.inria.lille.shexjava.graph.RDFGraph;
 import fr.inria.lille.shexjava.schema.ShexSchema;
 import fr.inria.lille.shexjava.schema.parsing.GenParser;
-import fr.inria.lille.shexjava.util.RDFFactory;
-import fr.inria.lille.shexjava.util.TestCase;
-import fr.inria.lille.shexjava.util.TestResultForTestReport;
+import fr.inria.lille.shexjava.util.*;
 import fr.inria.lille.shexjava.validation.RefineValidation;
 import fr.inria.lille.shexjava.validation.ValidationAlgorithm;
 
@@ -62,7 +61,7 @@ import fr.inria.lille.shexjava.validation.ValidationAlgorithm;
  */
 @RunWith(Parameterized.class)
 public class TestValidation_ShExJ_Jena_Refine {
-	protected static final RDFFactory RDF_FACTORY = RDFFactory.getInstance();
+	protected static final RDF RDF_FACTORY = RDFFactory.getInstance();
 	
 	protected static final String TEST_DIR = Paths.get("..","..","shexTest").toAbsolutePath().normalize().toString();
 	
@@ -72,8 +71,8 @@ public class TestValidation_ShExJ_Jena_Refine {
 	protected static final String SCHEMAS_DIR = Paths.get(TEST_DIR,"schemas").toString();
 
 	protected static final String GITHUB_URL = "https://raw.githubusercontent.com/shexSpec/shexTest/master/";
-	protected static final Resource VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
-	protected static final Resource VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
+	protected static final BlankNodeOrIRI VALIDATION_FAILURE_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationFailure");
+	protected static final BlankNodeOrIRI VALIDATION_TEST_CLASS = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#ValidationTest");
 	protected static final IRI RDF_TYPE = RDF_FACTORY.createIRI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
 	protected static final IRI TEST_TRAIT_IRI = RDF_FACTORY.createIRI("http://www.w3.org/ns/shacl/test-suite#trait");
 
@@ -95,25 +94,23 @@ public class TestValidation_ShExJ_Jena_Refine {
 	
 	@Parameters
     public static Collection<Object[]> parameters() throws IOException {
-    	if (Paths.get(MANIFEST_FILE).toFile().exists()) {
-	    	Model manifest = parseTurtleFile(MANIFEST_FILE,MANIFEST_FILE);
-	    	List<Object[]> parameters = new ArrayList<Object[]>();
-	    	String selectedTest = "";
-	    	for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_TEST_CLASS).subjects()) {
-	    		TestCase tc = new TestCase(manifest,testNode);
-		    	Object[] params =  {tc};
-		    	if (selectedTest.equals("") || tc.testName.equals(selectedTest))
-		    		parameters.add(params);
-			}
-	    	for (Resource testNode : manifest.filter(null,RDF_TYPE,VALIDATION_FAILURE_CLASS).subjects()) {
-	    		TestCase tc = new TestCase(manifest,testNode);
-		    	Object[] params =  {tc};
-		    	if (selectedTest.equals("") || tc.testName.equals(selectedTest))
-		    		parameters.add(params);
-			}
-	        return parameters;
-    	}
-    	return Collections.emptyList();
+        if (Paths.get(MANIFEST_FILE).toFile().exists()) {
+            Graph manifest = parseTurtleFile(MANIFEST_FILE, MANIFEST_FILE);
+            List<Object[]> parameters = new ArrayList<Object[]>();
+            String selectedTest = "";
+            manifest.stream(null, RDF_TYPE, VALIDATION_TEST_CLASS).map(Triple::getSubject).forEach(testNode -> {
+                TestCase tc = new TestCase(manifest, testNode);
+                Object[] params = { tc };
+                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+            });
+            manifest.stream(null, RDF_TYPE, VALIDATION_FAILURE_CLASS).map(Triple::getSubject).forEach(testNode -> {
+                TestCase tc = new TestCase(manifest, testNode);
+                Object[] params = { tc };
+                if (selectedTest.equals("") || tc.testName.equals(selectedTest)) parameters.add(params);
+            });
+            return parameters;
+        }
+        return Collections.emptyList();
     }
     
     
@@ -123,7 +120,7 @@ public class TestValidation_ShExJ_Jena_Refine {
 	@Test
     public void runTest() {
     	List<Object> reasons = new ArrayList<>();
-    	for (Value object: testCase.traits) {
+    	for (RDFTerm object: testCase.traits) {
     		if (skippedIris.contains(object)) {
     			reasons.add(object);
     		}
@@ -152,15 +149,19 @@ public class TestValidation_ShExJ_Jena_Refine {
     		ShexSchema schema = GenParser.parseSchema(schemaFile,Paths.get(SCHEMAS_DIR)); // exception possible
     		RDFGraph dataGraph = getRDFGraph();
     		ValidationAlgorithm validation = getValidationAlgorithm(schema, dataGraph);   
-	
+    		final String focus;
+            if (testCase.focusNode instanceof IRI) focus = ((IRI) testCase.focusNode).getIRIString();
+            else if (testCase.focusNode instanceof BlankNode)
+                focus = ((BlankNode) testCase.focusNode).uniqueReference();
+            else focus = ((Literal) testCase.focusNode).getLexicalForm();
     		// Fix for dealing with the absence of namespace specification in jena.
-    		if (testCase.focusNode.stringValue().startsWith(GITHUB_URL)) {
+    		if (focus.startsWith(GITHUB_URL)) {
     			if (TEST_DIR.contains(":")) {
     				String newURI = TEST_DIR.substring(0,TEST_DIR.indexOf(":")+1);
-    				newURI += testCase.focusNode.stringValue().substring(GITHUB_URL.length()+11);
+    				newURI += focus.substring(GITHUB_URL.length()+11);
     				testCase.focusNode = RDF_FACTORY.createIRI(newURI);
-    			}else {
-        			Path fullpath = Paths.get(TEST_DIR,testCase.focusNode.stringValue().substring(GITHUB_URL.length()));
+    			} else {
+        			Path fullpath = Paths.get(TEST_DIR, focus.substring(GITHUB_URL.length()));
     				testCase.focusNode = RDF_FACTORY.createIRI("file://"+fullpath.toString());
     			}
        		}
@@ -205,7 +206,7 @@ public class TestValidation_ShExJ_Jena_Refine {
 	// Utils functions for test
 	//--------------------------------------------------
 
-    public String getSchemaFileName (Resource res) {
+    public String getSchemaFileName (BlankNodeOrIRI res) {
     	String fp = res.toString().substring(GITHUB_URL.length());
     	fp = fp.substring(0,fp.length()-4)+"json";
 
@@ -219,7 +220,7 @@ public class TestValidation_ShExJ_Jena_Refine {
 
 	
 
-	public String getDataFileName (Resource res) {
+	public String getDataFileName (String res) {
 		String fp = res.toString().substring(GITHUB_URL.length());
 		
 		String result = Paths.get(TEST_DIR).toString();
@@ -227,23 +228,29 @@ public class TestValidation_ShExJ_Jena_Refine {
     	while(iter.hasNext())
     		result = Paths.get(result,iter.next().toString()).toString();
     	
-		return result;	
+		return "file://" + result;	
 	}
 	
 	public RDFGraph getRDFGraph() throws IOException {
 		org.apache.jena.rdf.model.Model model = ModelFactory.createDefaultModel() ;
-		model.read(getDataFileName(testCase.dataFileName)) ;
-		return new JenaGraph(model);
+        String dataFileName = ((IRI) testCase.dataFileName).getIRIString();
+        try {
+            model.read(getDataFileName(dataFileName), "TTL");
+        } catch (Exception e) {
+            // Jena sometimes has nonsensical problems parsing Turtle from Github
+        }
+		return new RDFGraph(new JenaRDF().asGraph(model));
 	}
 	
 	public ValidationAlgorithm getValidationAlgorithm(ShexSchema schema, RDFGraph dataGraph ) {
 		return new RefineValidation(schema, dataGraph);
 	}
 
-	public static Model parseTurtleFile(String filename,String baseURI) throws IOException{
-		Path fp = Paths.get(filename);
-		InputStream inputStream = new FileInputStream(fp.toFile());
-
-		return Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), RDF_FACTORY, new ParseErrorLogger());
-	}
+    public static Graph parseTurtleFile(String filename, String baseURI) throws IOException {
+        Path fp = Paths.get(filename);
+        InputStream inputStream = new FileInputStream(fp.toFile());
+        ValueFactory vf = SimpleValueFactory.getInstance();
+        Model rdf = Rio.parse(inputStream, baseURI, RDFFormat.TURTLE, new ParserConfig(), vf, new ParseErrorLogger());
+        return new RDF4J().asGraph(rdf);
+    }
 }

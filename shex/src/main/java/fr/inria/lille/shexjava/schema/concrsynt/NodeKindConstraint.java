@@ -16,10 +16,7 @@
  ******************************************************************************/
 package fr.inria.lille.shexjava.schema.concrsynt;
 
-import org.eclipse.rdf4j.model.BNode;
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Value;
+import org.apache.commons.rdf.api.*;
 
 /**
  * 
@@ -32,8 +29,8 @@ public class NodeKindConstraint implements Constraint {
 	public static final NodeKindConstraint Blank = new NodeKindConstraint(){
 
 		@Override
-		public boolean contains(Value node) {
-			return node instanceof BNode;
+		public boolean contains(RDFTerm node) {
+			return node instanceof BlankNode;
 		}
 		
 		@Override
@@ -45,7 +42,7 @@ public class NodeKindConstraint implements Constraint {
 	public static final NodeKindConstraint AllIRI = new NodeKindConstraint() {
 
 		@Override
-		public boolean contains(Value node) {
+		public boolean contains(RDFTerm node) {
 			return node instanceof IRI;
 		}
 		
@@ -59,7 +56,7 @@ public class NodeKindConstraint implements Constraint {
 	public static final NodeKindConstraint AllLiteral = new NodeKindConstraint() {
 		
 		@Override
-		public boolean contains(Value node) {
+		public boolean contains(RDFTerm node) {
 			return node instanceof Literal;
 		}
 		
@@ -71,7 +68,7 @@ public class NodeKindConstraint implements Constraint {
 	public static final NodeKindConstraint AllNonLiteral = new NodeKindConstraint() {
 		
 		@Override
-		public boolean contains(Value node) {
+		public boolean contains(RDFTerm node) {
 			return !(node instanceof Literal);
 		}
 		
@@ -83,7 +80,7 @@ public class NodeKindConstraint implements Constraint {
 	
 	
 	@Override
-	public boolean contains(Value node) {
+	public boolean contains(RDFTerm node) {
 		return false;
 	}	
 	

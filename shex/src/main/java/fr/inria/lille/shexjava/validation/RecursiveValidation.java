@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.IRI;
-import org.eclipse.rdf4j.model.Value;
+import org.apache.commons.rdf.api.IRI;
+import org.apache.commons.rdf.api.RDFTerm;
 
 import fr.inria.lille.shexjava.graph.NeighborTriple;
 import fr.inria.lille.shexjava.graph.RDFGraph;
@@ -79,9 +79,9 @@ public class RecursiveValidation implements ValidationAlgorithm {
 	}	
 	
 	@Override
-	public boolean validate(Value focusNode, Label label) throws Exception {
+	public boolean validate(RDFTerm focusNode, Label label) throws Exception {
 		if (label == null || !schema.getShapeMap().containsKey(label))
-			throw new Exception("Unknown label: "+label);
+		    throw new Exception("Unknown label: "+label);
 		this.resetTyping();
 		boolean result = recursiveValidation(focusNode,label);
 		if (result) {
@@ -90,7 +90,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 		return result;
 	}
 	
-	protected boolean recursiveValidation(Value focusNode, Label label) {
+	protected boolean recursiveValidation(RDFTerm focusNode, Label label) {
 		this.typing.addHypothesis(focusNode, label);
 		EvaluateShapeExpressionVisitor visitor = new EvaluateShapeExpressionVisitor(focusNode);
 		schema.getShapeMap().get(label).accept(visitor);
@@ -100,10 +100,10 @@ public class RecursiveValidation implements ValidationAlgorithm {
 	}
 	
 	class EvaluateShapeExpressionVisitor extends ShapeExpressionVisitor<Boolean> {
-		private Value node; 
+		private RDFTerm node; 
 		private Boolean result;
 		
-		public EvaluateShapeExpressionVisitor(Value one) {
+		public EvaluateShapeExpressionVisitor(RDFTerm one) {
 			this.node = one;
 		}
 
@@ -157,7 +157,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 	}
 	
 	
-	private boolean isLocallyValid (Value node, Shape shape) {
+	private boolean isLocallyValid (RDFTerm node, Shape shape) {
 		TripleExpr tripleExpression = this.sorbeGenerator.getSORBETripleExpr(shape);
 		Iterator<NeighborTriple> tmp ;
 
@@ -197,7 +197,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 		}
 		
 		// Match using only predicate and recursive test. The following line are the only difference with refine validation
-		Set<Pair<Value, Label>> shapeMap = new HashSet<Pair<Value, Label>>();
+		Set<Pair<RDFTerm, Label>> shapeMap = new HashSet<>();
 		Matcher matcher1 = new MatcherPredicateOnly();
 		LinkedHashMap<NeighborTriple,List<TripleConstraint>> matchingTC1 = Matcher.collectMatchingTC(neighbourhood, constraints, matcher1);
 
@@ -206,7 +206,7 @@ public class RecursiveValidation implements ValidationAlgorithm {
 			if (possibility.isEmpty() & ! shape.getExtraProperties().contains(entry.getKey().getPredicate()))
 				return false;
 			for (TripleConstraint tc:possibility) {
-				Value destNode = entry.getKey().getOpposite();
+			    RDFTerm destNode = entry.getKey().getOpposite();
 				if (! this.typing.contains(destNode, tc.getShapeExpr().getId())) {
 					if (this.recursiveValidation(destNode, tc.getShapeExpr().getId()))
 						shapeMap.add(new Pair<>(destNode, tc.getShapeExpr().getId()));

@@ -23,8 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.rdf4j.model.ValueFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.apache.commons.rdf.api.*;
 import org.jgrapht.Graph;
 import org.jgrapht.alg.CycleDetector;
 import org.jgrapht.alg.KosarajuStrongConnectivityInspector;
@@ -58,6 +57,7 @@ import fr.inria.lille.shexjava.schema.analysis.SchemaCollectors;
 import fr.inria.lille.shexjava.schema.analysis.ShapeExpressionVisitor;
 import fr.inria.lille.shexjava.schema.analysis.TripleExpressionVisitor;
 import fr.inria.lille.shexjava.util.Pair;
+import fr.inria.lille.shexjava.util.RDFFactory;
 
 /** A ShEx schema.
  * 
@@ -69,20 +69,34 @@ import fr.inria.lille.shexjava.util.Pair;
  * @author Jérémie Dusart
  */
 public class ShexSchema {
+    
+    private final RDF rdfFactory;
+    
 	private Map<Integer,Set<Label>> stratification = null;
 	private Map<Label, ShapeExpr> rules;
 	private Map<Label,ShapeExpr> shapeMap;
 	private Map<Label,TripleExpr> tripleMap;
 
 	/** The constructor try to instantiate a well-defined schema. Label are generated for all shapeExpr and tripleExpr without and ID. References are resolved and a verification that there is no cycles in the references is performed. The stratification of the set of rules is stratified is computed. Rules cannot be modified after initialization
+     * @param rules
+     * @throws UndefinedReferenceException
+     * @throws CyclicReferencesException
+     * @throws NotStratifiedException
+     */
+    public ShexSchema(Map<Label, ShapeExpr> rules) throws UndefinedReferenceException, CyclicReferencesException, NotStratifiedException {
+        this(rules, RDFFactory.getInstance());
+    }
+
+	/** The constructor try to instantiate a well-defined schema. Label are generated for all shapeExpr and tripleExpr without and ID. References are resolved and a verification that there is no cycles in the references is performed. The stratification of the set of rules is stratified is computed. Rules cannot be modified after initialization
 	 * @param rules
+	 * @param factory
 	 * @throws UndefinedReferenceException
 	 * @throws CyclicReferencesException
 	 * @throws NotStratifiedException
 	 */
-	public ShexSchema(Map<Label, ShapeExpr> rules) throws UndefinedReferenceException, CyclicReferencesException, NotStratifiedException {
-		//check that id are unique
-		
+	public ShexSchema(Map<Label, ShapeExpr> rules, RDF factory) throws UndefinedReferenceException, CyclicReferencesException, NotStratifiedException {
+		this.rdfFactory = factory;
+	    //check that id are unique
 		this.rules = Collections.unmodifiableMap(new HashMap<Label, ShapeExpr>(rules));
 		// Collect all the ShapeExpr
 		Set<ShapeExpr> allShapes = SchemaCollectors.collectAllShapes(this.rules);
@@ -227,8 +241,7 @@ public class ShexSchema {
 	//--------------------------------------------------------------------------------
 	// ID  function
 	//--------------------------------------------------------------------------------
-	private final static ValueFactory rdfFactory = SimpleValueFactory.getInstance();
-	
+
 	private static int shapeLabelNb = 0;
 	private static String SHAPE_LABEL_PREFIX = "SLGEN";
 	private static int tripleLabelNb = 0;
@@ -240,26 +253,25 @@ public class ShexSchema {
 		}
 		return true;
 	}
-	
-	private static Label createShapeLabel (String string,boolean generated) {
-		if (isIriString(string))
-			return new Label(rdfFactory.createIRI(string),generated);
-		else 
-			return new Label(rdfFactory.createBNode(string),generated);
-	}
-	
+
+    private Label createShapeLabel(String string, boolean generated) {
+        return isIriString(string)
+                        ? new Label(rdfFactory.createIRI(string), generated)
+                        : new Label(rdfFactory.createBlankNode(string), generated);
+    }
+
 	private void checkShapeID(ShapeExpr shape) {
 		if (shape.getId() == null) {
-			shape.setId(createShapeLabel(String.format("%s_%04d", SHAPE_LABEL_PREFIX,shapeLabelNb),true));
+			String formattedLabel = String.format("%s_%04d", SHAPE_LABEL_PREFIX,shapeLabelNb);
+            shape.setId(createShapeLabel(formattedLabel, true));
 			shapeLabelNb++;
 		}
 	}
 	
-	private static Label createTripleLabel (String string,boolean generated) {
-		if (isIriString(string))
-			return new Label(rdfFactory.createIRI(string),generated);
-		else 
-			return new Label(rdfFactory.createBNode(string),generated);
+	private Label createTripleLabel (String string,boolean generated) {
+        return isIriString(string)
+                        ? new Label(rdfFactory.createIRI(string), generated)
+                        : new Label(rdfFactory.createBlankNode(string), generated);
 	}
 	
 	private void checkTripleID(TripleExpr triple) {

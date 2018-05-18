@@ -78,6 +78,7 @@ public class TestReferences {
 		}catch(Exception e){
 //			System.out.println(schemaFile);
 //			System.out.println(e.getClass().getName()+':'+e.getMessage());
+//		    e.printStackTrace(System.err);
 			fail(schemaFile+" create error "+e.getClass().getName()+": "+e.getMessage());
 		}
 	}
